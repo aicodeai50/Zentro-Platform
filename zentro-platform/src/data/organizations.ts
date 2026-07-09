@@ -1,0 +1,96 @@
+import type { Organization } from "./types";
+
+export const organizations: Organization[] = [
+  {
+    id: "org_personal",
+    name: "Personal",
+    slug: "personal",
+    plan: "Free",
+    owner: "Sandra Lee",
+    usageBalance: "$5.00",
+    creditsRemaining: 2400,
+    projects: ["proj_personal_lab"],
+    members: [
+      {
+        id: "mem_personal_1",
+        name: "Sandra Lee",
+        email: "sandra@zentro.dev",
+        role: "owner",
+        status: "Active",
+      },
+    ],
+  },
+  {
+    id: "org_zentro",
+    name: "Zentro",
+    slug: "zentro",
+    plan: "Pro",
+    owner: "Sandra Lee",
+    usageBalance: "$42.18",
+    creditsRemaining: 18450,
+    projects: ["proj_prod_api", "proj_staging", "proj_research"],
+    members: [
+      {
+        id: "mem_zentro_1",
+        name: "Sandra Lee",
+        email: "sandra@zentro.dev",
+        role: "owner",
+        status: "Active",
+      },
+      {
+        id: "mem_zentro_2",
+        name: "Mika Chen",
+        email: "mika@zentro.dev",
+        role: "admin",
+        status: "Active",
+      },
+      {
+        id: "mem_zentro_3",
+        name: "Jonas Park",
+        email: "jonas@zentro.dev",
+        role: "developer",
+        status: "Active",
+      },
+      {
+        id: "mem_zentro_4",
+        name: "Ava Cole",
+        email: "ava@zentro.dev",
+        role: "viewer",
+        status: "Invited",
+      },
+    ],
+  },
+  {
+    id: "org_acme",
+    name: "Acme Inc.",
+    slug: "acme-inc",
+    plan: "Team",
+    owner: "Priya Shah",
+    usageBalance: "$318.76",
+    creditsRemaining: 96200,
+    projects: ["proj_acme_support", "proj_acme_agents"],
+    members: [
+      {
+        id: "mem_acme_1",
+        name: "Priya Shah",
+        email: "priya@acme.example",
+        role: "owner",
+        status: "Active",
+      },
+      {
+        id: "mem_acme_2",
+        name: "Sandra Lee",
+        email: "sandra@zentro.dev",
+        role: "developer",
+        status: "Active",
+      },
+      {
+        id: "mem_acme_3",
+        name: "Theo Ramos",
+        email: "theo@acme.example",
+        role: "viewer",
+        status: "Active",
+      },
+    ],
+  },
+];

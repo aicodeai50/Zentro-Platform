@@ -1,15 +1,36 @@
 import { Card } from "../components/ui/Card";
 import { MetricCard } from "../components/ui/MetricCard";
 import { PageHeader } from "../components/ui/PageHeader";
-import { dashboardMetrics, usageEvents } from "../data/mockData";
+import { usePlatform } from "../lib/platformState";
 
 export function Dashboard() {
+  const { selectedOrganization, selectedProject } = usePlatform();
+  const activeKeys = selectedProject.apiKeyIds.length.toString();
+  const dashboardMetrics = [
+    {
+      label: "Credits remaining",
+      value: selectedOrganization.creditsRemaining.toLocaleString(),
+      delta: `${selectedOrganization.plan} plan`,
+    },
+    {
+      label: "Requests this month",
+      value: selectedProject.usage.requestsThisMonth.toLocaleString(),
+      delta: `${selectedProject.usage.requestsToday.toLocaleString()} today`,
+    },
+    {
+      label: "Token usage",
+      value: `${(selectedProject.usage.tokensThisMonth / 1000000).toFixed(1)}M`,
+      delta: "Project token usage",
+    },
+    { label: "Active API keys", value: activeKeys, delta: "Scoped to this project" },
+  ];
+
   return (
     <>
       <PageHeader
         eyebrow="Overview"
-        title="Developer platform dashboard"
-        description="Monitor credits, requests, token usage, and recent activity for your Zentro API workspace."
+        title={selectedProject.name}
+        description={`Monitor credits, requests, token usage, and recent activity for ${selectedOrganization.name}/${selectedProject.name}.`}
       />
 
       <div className="metric-grid">
@@ -21,10 +42,10 @@ export function Dashboard() {
       <div className="two-column">
         <Card className="hero-card">
           <span className="eyebrow">Credits</span>
-          <h2>18,450 credits remaining</h2>
+          <h2>{selectedOrganization.creditsRemaining.toLocaleString()} credits remaining</h2>
           <p>
-            Your current Pro plan is projected to last 17 more days based on the
-            last week of API usage.
+            This dashboard is scoped to the selected project. Backend metering will replace the
+            mock usage summaries when the API is connected.
           </p>
           <div className="progress-track">
             <div className="progress-fill" style={{ width: "68%" }} />
@@ -37,7 +58,7 @@ export function Dashboard() {
             <span>Mock data</span>
           </div>
           <div className="table-list">
-            {usageEvents.map((event) => (
+            {selectedProject.usage.events.map((event) => (
               <div className="table-row" key={event.id}>
                 <div>
                   <strong>{event.model}</strong>
@@ -47,6 +68,9 @@ export function Dashboard() {
                 <span>{event.credits} credits</span>
               </div>
             ))}
+            {selectedProject.usage.events.length === 0 ? (
+              <div className="empty-state">No usage events for this project yet.</div>
+            ) : null}
           </div>
         </Card>
       </div>

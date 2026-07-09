@@ -1,5 +1,5 @@
-import { Bell, ChevronDown, Moon, Search, Sun } from "lucide-react";
-import { organization } from "../../data/mockData";
+import { Bell, Moon, Search, Sun } from "lucide-react";
+import { usePlatform } from "../../lib/platformState";
 
 type TopbarProps = {
   theme: "light" | "dark";
@@ -7,6 +7,15 @@ type TopbarProps = {
 };
 
 export function Topbar({ theme, onToggleTheme }: TopbarProps) {
+  const {
+    organizations,
+    organizationProjects,
+    selectedOrganization,
+    selectedProject,
+    selectOrganization,
+    selectProject,
+  } = usePlatform();
+
   return (
     <header className="topbar">
       <div className="search-box">
@@ -15,13 +24,32 @@ export function Topbar({ theme, onToggleTheme }: TopbarProps) {
       </div>
 
       <div className="topbar-actions">
-        <button className="org-switcher" type="button">
-          <span>{organization.name}</span>
-          <ChevronDown size={16} />
-        </button>
+        <label className="switcher-label">
+          <span>Organization</span>
+          <select
+            value={selectedOrganization.id}
+            onChange={(event) => selectOrganization(event.target.value)}
+          >
+            {organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {organization.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="switcher-label">
+          <span>Project</span>
+          <select value={selectedProject.id} onChange={(event) => selectProject(event.target.value)}>
+            {organizationProjects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="balance-pill">
           <span>Balance</span>
-          <strong>{organization.usageBalance}</strong>
+          <strong>{selectedOrganization.usageBalance}</strong>
         </div>
         <button
           className="icon-button"
@@ -36,7 +64,6 @@ export function Topbar({ theme, onToggleTheme }: TopbarProps) {
         </button>
         <button className="user-menu" type="button">
           <span>SL</span>
-          <ChevronDown size={16} />
         </button>
       </div>
     </header>

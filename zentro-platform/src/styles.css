@@ -116,6 +116,9 @@ pre {
 
 .brand span,
 .nav-item,
+.nav-section,
+.project-context span,
+.project-context small,
 .search-box,
 .balance-pill span,
 .page-header p,
@@ -132,9 +135,32 @@ pre {
   color: var(--muted);
 }
 
+.project-context {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  margin-bottom: 18px;
+  padding: 14px;
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.project-context span,
+.project-context small,
+.nav-section {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .sidebar-nav {
   display: grid;
   gap: 6px;
+}
+
+.nav-section {
+  padding: 16px 12px 4px;
 }
 
 .nav-item {
@@ -179,6 +205,7 @@ pre {
 
 .search-box,
 .org-switcher,
+.switcher-label select,
 .balance-pill,
 .icon-button,
 .user-menu,
@@ -197,6 +224,22 @@ pre {
   max-width: 460px;
   background: var(--panel);
   padding: 11px 14px;
+}
+
+.switcher-label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.switcher-label select {
+  min-width: 148px;
+  padding: 9px 34px 9px 12px;
+  color: var(--text);
 }
 
 .topbar-actions {
@@ -249,6 +292,11 @@ pre {
   font-weight: 700;
 }
 
+a.primary-button,
+a.ghost-button {
+  text-decoration: none;
+}
+
 .danger-button {
   background: rgba(239, 68, 68, 0.12);
   border-color: rgba(239, 68, 68, 0.28);
@@ -294,7 +342,8 @@ pre {
 .plans-grid,
 .model-grid,
 .docs-grid,
-.settings-grid {
+.settings-grid,
+.projects-grid {
   display: grid;
   gap: 16px;
 }
@@ -390,7 +439,7 @@ pre {
 }
 
 .api-key-row {
-  grid-template-columns: minmax(220px, 1fr) auto auto auto auto auto auto;
+  grid-template-columns: minmax(220px, 1fr) auto auto auto auto auto auto auto auto;
 }
 
 .key-title {
@@ -450,6 +499,38 @@ pre {
   background: rgba(3, 7, 18, 0.52);
   padding: 14px;
   color: #bbf7d0;
+}
+
+.key-section {
+  margin-bottom: 16px;
+}
+
+.empty-state {
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.modal-backdrop {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 7, 18, 0.72);
+  padding: 24px;
+}
+
+.modal-card {
+  width: min(640px, 100%);
+}
+
+.permission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .progress-track {
@@ -515,6 +596,53 @@ pre {
 .plans-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 16px;
+}
+
+.projects-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-card {
+  display: grid;
+  gap: 16px;
+}
+
+.project-card p {
+  min-height: 48px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.project-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.project-stats div {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.project-stats span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.project-stats strong {
+  display: block;
+  margin-top: 6px;
+}
+
+.inline-actions,
+.project-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 
 .plan-card {
@@ -650,6 +778,10 @@ textarea {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .projects-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .two-column,
   .playground-grid,
   .docs-layout,
@@ -691,12 +823,15 @@ textarea {
   .metric-grid,
   .metric-grid.compact,
   .plans-grid,
+  .projects-grid,
   .model-grid,
   .docs-grid,
   .table-row,
   .api-key-row,
   .stack-item,
-  .slider-row {
+  .slider-row,
+  .project-stats,
+  .permission-grid {
     grid-template-columns: 1fr;
   }
 }

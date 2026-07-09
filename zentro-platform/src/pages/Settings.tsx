@@ -1,14 +1,16 @@
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
-import { settings } from "../data/mockData";
+import { usePlatform } from "../lib/platformState";
 
 export function Settings() {
+  const { selectedOrganization, selectedProject } = usePlatform();
+
   return (
     <>
       <PageHeader
-        eyebrow="Workspace settings"
-        title="Organization settings"
-        description="Configure organization defaults, webhooks, and data privacy preferences."
+        eyebrow="Project settings"
+        title={`${selectedProject.name} settings`}
+        description="Configure general settings, environment, CORS, rate limits, webhooks, members, and secrets placeholders."
       />
 
       <div className="settings-grid">
@@ -20,11 +22,15 @@ export function Settings() {
           <div className="form-grid">
             <label>
               Organization name
-              <input defaultValue={settings.organizationName} />
+              <input defaultValue={selectedOrganization.name} />
             </label>
             <label>
-              Default project
-              <input defaultValue={settings.defaultProject} />
+              Project name
+              <input defaultValue={selectedProject.name} />
+            </label>
+            <label>
+              Description
+              <textarea defaultValue={selectedProject.description} rows={3} />
             </label>
             <button className="primary-button" type="button">
               Save changes
@@ -39,12 +45,51 @@ export function Settings() {
           </div>
           <div className="form-grid">
             <label>
-              Endpoint URL
-              <input defaultValue={settings.webhookUrl} />
+              Environment
+              <select defaultValue={selectedProject.environment}>
+                <option value="test">Test</option>
+                <option value="staging">Staging</option>
+                <option value="production">Production</option>
+                <option value="live">Live</option>
+              </select>
             </label>
             <label>
-              Signing secret
-              <input defaultValue="zentro_whsec_mock" type="password" />
+              Allowed Origins (CORS)
+              <textarea defaultValue={selectedProject.settings.allowedOrigins.join("\n")} rows={4} />
+            </label>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="card-heading">
+            <h2>Rate Limits</h2>
+            <span>Per project</span>
+          </div>
+          <div className="form-grid">
+            <label>
+              Requests per minute
+              <input defaultValue={selectedProject.settings.rateLimits.requestsPerMinute} type="number" />
+            </label>
+            <label>
+              Tokens per minute
+              <input defaultValue={selectedProject.settings.rateLimits.tokensPerMinute} type="number" />
+            </label>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="card-heading">
+            <h2>Webhooks</h2>
+            <span>Placeholder</span>
+          </div>
+          <div className="form-grid">
+            <label>
+              Endpoint URL
+              <input defaultValue={selectedProject.settings.webhooks.url} />
+            </label>
+            <label>
+              Events
+              <input defaultValue={selectedProject.settings.webhooks.events.join(", ")} />
             </label>
             <button className="ghost-button" type="button">
               Send test event
@@ -54,21 +99,22 @@ export function Settings() {
 
         <Card className="privacy-card">
           <div className="card-heading">
-            <h2>Data privacy</h2>
-            <span>Organization controls</span>
+            <h2>Members and Secrets</h2>
+            <span>Project access</span>
           </div>
-          <label className="toggle-row">
-            <input type="checkbox" defaultChecked={!settings.privacy.retainPrompts} />
-            Do not retain prompts after processing
-          </label>
-          <label className="toggle-row">
-            <input type="checkbox" defaultChecked={!settings.privacy.allowTraining} />
-            Exclude organization data from model training
-          </label>
-          <label className="toggle-row">
-            <input type="checkbox" defaultChecked={settings.privacy.piiRedaction} />
-            Enable automatic PII redaction
-          </label>
+          <div className="table-list">
+            {selectedOrganization.members.map((member) => (
+              <div className="table-row" key={member.id}>
+                <div>
+                  <strong>{member.name}</strong>
+                  <span>{member.email}</span>
+                </div>
+                <span>{member.role}</span>
+                <span>{member.status}</span>
+              </div>
+            ))}
+          </div>
+          <div className="empty-state">{selectedProject.settings.secretsPlaceholder}</div>
         </Card>
       </div>
     </>

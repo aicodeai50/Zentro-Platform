@@ -2,7 +2,8 @@ import { MailPlus } from "lucide-react";
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
-import { teamMembers, type MemberRole } from "../data/mockData";
+import type { MemberRole } from "../data/types";
+import { usePlatform } from "../lib/platformState";
 
 const roleTone: Record<MemberRole, "success" | "info" | "warning" | "neutral"> = {
   owner: "success",
@@ -12,12 +13,14 @@ const roleTone: Record<MemberRole, "success" | "info" | "warning" | "neutral"> =
 };
 
 export function Team() {
+  const { selectedOrganization } = usePlatform();
+
   return (
     <>
       <PageHeader
         eyebrow="Organization"
         title="Team members"
-        description="Manage access for owners, admins, developers, and viewers in your Zentro workspace."
+        description={`Manage access for owners, admins, developers, and viewers in ${selectedOrganization.name}.`}
         actions={
           <button className="primary-button" type="button">
             <MailPlus size={16} />
@@ -37,10 +40,10 @@ export function Team() {
       <Card>
         <div className="card-heading">
           <h2>Members</h2>
-          <span>{teamMembers.length} seats</span>
+          <span>{selectedOrganization.members.length} seats</span>
         </div>
         <div className="table-list">
-          {teamMembers.map((member) => (
+          {selectedOrganization.members.map((member) => (
             <div className="table-row" key={member.email}>
               <div>
                 <strong>{member.name}</strong>

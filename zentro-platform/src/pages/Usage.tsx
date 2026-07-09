@@ -1,16 +1,19 @@
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
-import { tokensByModel, usageByDay } from "../data/mockData";
-
-const maxRequests = Math.max(...usageByDay.map((day) => day.requests));
+import { usePlatform } from "../lib/platformState";
 
 export function Usage() {
+  const { selectedProject } = usePlatform();
+  const usageByDay = selectedProject.usage.byDay;
+  const tokensByModel = selectedProject.usage.byModel;
+  const maxRequests = Math.max(...usageByDay.map((day) => day.requests), 1);
+
   return (
     <>
       <PageHeader
         eyebrow="Usage analytics"
-        title="Requests, tokens, and credits"
-        description="Review mock usage trends before connecting Zentro Platform to metering endpoints."
+        title={`${selectedProject.name} usage`}
+        description="Review mock project usage trends before connecting Zentro Platform to metering endpoints."
       />
 
       <div className="two-column">

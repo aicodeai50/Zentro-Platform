@@ -3,10 +3,13 @@ import { Copy, Play } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { models } from "../data/mockData";
+import { api } from "../lib/apiClient";
+import { usePlatform } from "../lib/platformState";
 
 const initialPrompt = "Write a concise launch checklist for a developer API platform.";
 
 export function Playground() {
+  const { selectedProject } = usePlatform();
   const [model, setModel] = useState("Zentro Fast");
   const [systemPrompt, setSystemPrompt] = useState("You are a practical developer platform assistant.");
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -32,17 +35,15 @@ export function Playground() {
     [maxTokens, model, prompt, systemPrompt, temperature]
   );
 
-  function runMockPrompt() {
-    setResponse(
-      `Mock response from ${model}: start with authentication, validate the request contract, instrument usage, document errors, and invite a teammate to review production access.`
-    );
+  async function runMockPrompt() {
+    setResponse(await api.playground.run(selectedProject.id, model));
   }
 
   return (
     <>
       <PageHeader
         eyebrow="Playground"
-        title="Experiment with prompts"
+        title={`${selectedProject.name} playground`}
         description="Tune parameters and preview request payloads before wiring up live model calls."
       />
 

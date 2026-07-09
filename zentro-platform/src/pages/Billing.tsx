@@ -1,9 +1,12 @@
 import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
-import { billingPlans, invoices, organization } from "../data/mockData";
+import { billingPlans, invoices } from "../data/mockData";
+import { usePlatform } from "../lib/platformState";
 
 export function Billing() {
+  const { selectedOrganization } = usePlatform();
+
   return (
     <>
       <PageHeader
@@ -14,7 +17,7 @@ export function Billing() {
 
       <div className="plans-grid">
         {billingPlans.map((plan) => {
-          const isCurrent = plan.name === organization.currentPlan;
+          const isCurrent = plan.name === selectedOrganization.plan;
 
           return (
             <Card className={isCurrent ? "plan-card current" : "plan-card"} key={plan.name}>
