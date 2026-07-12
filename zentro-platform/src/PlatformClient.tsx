@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
+import { AppSessionProvider } from "./lib/appSession";
 
 export function PlatformClient() {
   const [isMounted, setIsMounted] = useState(false);
@@ -17,7 +18,9 @@ export function PlatformClient() {
 
   return (
     <BrowserRouter>
-      <App />
+      <AppSessionProvider>
+        <App />
+      </AppSessionProvider>
     </BrowserRouter>
   );
 }

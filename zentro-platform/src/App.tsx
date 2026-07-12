@@ -1,87 +1,40 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { AuthGate } from "./components/auth/AuthGate";
 import { AppLayout } from "./components/layout/AppLayout";
-import { organizations } from "./data/organizations";
-import { projects } from "./data/projects";
-import { PlatformContext } from "./lib/platformState";
-import { ApiKeys } from "./views/ApiKeys";
-import { Billing } from "./views/Billing";
-import { Dashboard } from "./views/Dashboard";
-import { Docs } from "./views/Docs";
-import { Logs } from "./views/Logs";
-import { Models } from "./views/Models";
-import { Playground } from "./views/Playground";
-import { ProjectDetail } from "./views/ProjectDetail";
-import { ProjectNew } from "./views/ProjectNew";
+import { AI } from "./views/AI";
+import { Analytics } from "./views/Analytics";
+import { ApiPortal } from "./views/ApiPortal";
+import { Health } from "./views/Health";
+import { Home } from "./views/Home";
 import { Projects } from "./views/Projects";
 import { Settings } from "./views/Settings";
-import { Team } from "./views/Team";
-import { Usage } from "./views/Usage";
+import { Workspace } from "./views/Workspace";
 
 type Theme = "light" | "dark";
 
 export function App() {
   const [theme, setTheme] = useState<Theme>("dark");
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState("org_zentro");
-  const [selectedProjectId, setSelectedProjectId] = useState("proj_prod_api");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  const platformState = useMemo(() => {
-    const selectedOrganization =
-      organizations.find((organization) => organization.id === selectedOrganizationId) ?? organizations[0];
-    const organizationProjects = projects.filter(
-      (project) => project.organizationId === selectedOrganization.id
-    );
-    const selectedProject =
-      organizationProjects.find((project) => project.id === selectedProjectId) ?? organizationProjects[0];
-
-    if (!selectedProject) {
-      throw new Error(`No projects configured for ${selectedOrganization.name}`);
-    }
-
-    return {
-      organizations,
-      selectedOrganization,
-      selectedProject,
-      organizationProjects,
-      selectOrganization: (organizationId: string) => {
-        const nextOrganization =
-          organizations.find((organization) => organization.id === organizationId) ?? organizations[0];
-        const nextProject = projects.find((project) => project.organizationId === nextOrganization.id);
-
-        setSelectedOrganizationId(nextOrganization.id);
-        if (nextProject) {
-          setSelectedProjectId(nextProject.id);
-        }
-      },
-      selectProject: setSelectedProjectId,
-    };
-  }, [selectedOrganizationId, selectedProjectId]);
-
   return (
-    <PlatformContext.Provider value={platformState}>
+    <AuthGate>
       <AppLayout theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/workspace" element={<Workspace />} />
           <Route path="/projects" element={<Projects />} />
-          <Route path="/projects/new" element={<ProjectNew />} />
-          <Route path="/projects/:id" element={<ProjectDetail />} />
-          <Route path="/api-keys" element={<ApiKeys />} />
-          <Route path="/usage" element={<Usage />} />
-          <Route path="/billing" element={<Billing />} />
-          <Route path="/models" element={<Models />} />
-          <Route path="/playground" element={<Playground />} />
-          <Route path="/logs" element={<Logs />} />
-          <Route path="/docs" element={<Docs />} />
-          <Route path="/team" element={<Team />} />
+          <Route path="/ai" element={<AI />} />
+          <Route path="/api" element={<ApiPortal />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/health" element={<Health />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppLayout>
-    </PlatformContext.Provider>
+    </AuthGate>
   );
 }

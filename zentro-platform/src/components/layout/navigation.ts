@@ -1,30 +1,21 @@
 import {
+  Activity,
   BarChart3,
-  BookOpen,
-  Boxes,
-  CreditCard,
+  Bot,
+  Code2,
   Gauge,
-  KeyRound,
   ListTree,
-  ScrollText,
   Settings,
-  TerminalSquare,
   Users,
 } from "lucide-react";
 
 export const navigationItems = [
-  { label: "Overview", path: "/dashboard", icon: Gauge },
-  { label: "API Keys", path: "/api-keys", icon: KeyRound },
-  { label: "Usage", path: "/usage", icon: BarChart3 },
-  { label: "Models", path: "/models", icon: Boxes },
-  { label: "Playground", path: "/playground", icon: TerminalSquare },
-  { label: "Logs", path: "/logs", icon: ScrollText },
-  { label: "Members", path: "/team", icon: Users },
-  { label: "Settings", path: "/settings", icon: Settings },
-];
-
-export const workspaceItems = [
+  { label: "Home", path: "/", icon: Gauge },
+  { label: "Workspace", path: "/workspace", icon: Users },
   { label: "Projects", path: "/projects", icon: ListTree },
-  { label: "Billing", path: "/billing", icon: CreditCard },
-  { label: "Docs", path: "/docs", icon: BookOpen },
+  { label: "AI", path: "/ai", icon: Bot },
+  { label: "API", path: "/api", icon: Code2 },
+  { label: "Analytics", path: "/analytics", icon: BarChart3 },
+  { label: "Health", path: "/health", icon: Activity },
+  { label: "Settings", path: "/settings", icon: Settings },
 ];

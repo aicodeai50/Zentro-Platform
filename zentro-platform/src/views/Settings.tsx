@@ -1,121 +1,114 @@
+import { useState } from "react";
 import { Card } from "../components/ui/Card";
+import { BackendState, ValueList } from "../components/ui/BackendState";
 import { PageHeader } from "../components/ui/PageHeader";
-import { usePlatform } from "../lib/platformState";
+import { useAppSession } from "../lib/appSession";
+import { useApiResource } from "../lib/useApiResource";
+import { zentroApi } from "../lib/zentroApi";
 
 export function Settings() {
-  const { selectedOrganization, selectedProject } = usePlatform();
+  const { apiContext } = useAppSession();
+  const backendSettings = useApiResource(() => zentroApi.settings.get(apiContext), [apiContext.workspaceId]);
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [settingsJson, setSettingsJson] = useState("{}");
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function updateWorkspace() {
+    const result = await zentroApi.workspace.update({ name: workspaceName }, apiContext);
+    setMessage(result.status === "success" ? "Workspace updated by backend." : `${result.message} Endpoint: ${result.endpoint}`);
+  }
+
+  async function updateSettings() {
+    try {
+      const payload = JSON.parse(settingsJson) as Record<string, unknown>;
+      const result = await zentroApi.settings.update(payload, apiContext);
+      setMessage(result.status === "success" ? "Settings updated by backend." : `${result.message} Endpoint: ${result.endpoint}`);
+    } catch {
+      setMessage("Settings JSON is invalid.");
+    }
+  }
 
   return (
     <>
       <PageHeader
-        eyebrow="Project settings"
-        title={`${selectedProject.name} settings`}
-        description="Configure general settings, environment, CORS, rate limits, webhooks, members, and secrets placeholders."
+        eyebrow="Settings"
+        title="Workspace settings"
+        description="Theme, profile, notifications, API preferences, developer mode, and backend configuration."
       />
 
       <div className="settings-grid">
         <Card>
           <div className="card-heading">
-            <h2>Organization</h2>
-            <span>Mock form</span>
+            <h2>Theme</h2>
+            <span>Local preference</span>
           </div>
           <div className="form-grid">
             <label>
-              Organization name
-              <input defaultValue={selectedOrganization.name} />
-            </label>
-            <label>
-              Project name
-              <input defaultValue={selectedProject.name} />
-            </label>
-            <label>
-              Description
-              <textarea defaultValue={selectedProject.description} rows={3} />
-            </label>
-            <button className="primary-button" type="button">
-              Save changes
-            </button>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="card-heading">
-            <h2>Webhooks</h2>
-            <span>Placeholder</span>
-          </div>
-          <div className="form-grid">
-            <label>
-              Environment
-              <select defaultValue={selectedProject.environment}>
-                <option value="test">Test</option>
-                <option value="staging">Staging</option>
-                <option value="production">Production</option>
-                <option value="live">Live</option>
+              Preferred theme
+              <select defaultValue="system">
+                <option value="system">System</option>
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
               </select>
             </label>
-            <label>
-              Allowed Origins (CORS)
-              <textarea defaultValue={selectedProject.settings.allowedOrigins.join("\n")} rows={4} />
-            </label>
           </div>
         </Card>
 
         <Card>
           <div className="card-heading">
-            <h2>Rate Limits</h2>
-            <span>Per project</span>
+            <h2>Workspace</h2>
+            <span>PATCH /workspace</span>
           </div>
           <div className="form-grid">
             <label>
-              Requests per minute
-              <input defaultValue={selectedProject.settings.rateLimits.requestsPerMinute} type="number" />
+              Workspace name
+              <input value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} />
             </label>
-            <label>
-              Tokens per minute
-              <input defaultValue={selectedProject.settings.rateLimits.tokensPerMinute} type="number" />
-            </label>
+            <button className="primary-button" type="button" onClick={updateWorkspace}>
+              Update workspace using backend
+            </button>
+            {message ? <p className="muted-text">{message}</p> : null}
           </div>
         </Card>
 
         <Card>
           <div className="card-heading">
-            <h2>Webhooks</h2>
-            <span>Placeholder</span>
+            <h2>Notifications</h2>
+            <span>PATCH /settings</span>
           </div>
           <div className="form-grid">
             <label>
-              Endpoint URL
-              <input defaultValue={selectedProject.settings.webhooks.url} />
+              Settings JSON
+              <textarea rows={4} value={settingsJson} onChange={(event) => setSettingsJson(event.target.value)} />
             </label>
-            <label>
-              Events
-              <input defaultValue={selectedProject.settings.webhooks.events.join(", ")} />
-            </label>
-            <button className="ghost-button" type="button">
-              Send test event
+            <button className="ghost-button" type="button" onClick={updateSettings}>
+              Update settings using backend
             </button>
           </div>
         </Card>
 
-        <Card className="privacy-card">
+        <Card>
           <div className="card-heading">
-            <h2>Members and Secrets</h2>
-            <span>Project access</span>
+            <h2>Developer mode</h2>
+            <span>Local preference</span>
           </div>
-          <div className="table-list">
-            {selectedOrganization.members.map((member) => (
-              <div className="table-row" key={member.id}>
-                <div>
-                  <strong>{member.name}</strong>
-                  <span>{member.email}</span>
-                </div>
-                <span>{member.role}</span>
-                <span>{member.status}</span>
-              </div>
-            ))}
-          </div>
-          <div className="empty-state">{selectedProject.settings.secretsPlaceholder}</div>
+          <label className="toggle-row">
+            <input type="checkbox" />
+            Show endpoint names and capability notices
+          </label>
         </Card>
+
+        <BackendState resource={backendSettings}>
+          {(data) => (
+            <Card className="privacy-card">
+              <div className="card-heading">
+                <h2>Backend configuration</h2>
+              <span>GET /settings</span>
+              </div>
+              <ValueList value={data} />
+            </Card>
+          )}
+        </BackendState>
       </div>
     </>
   );

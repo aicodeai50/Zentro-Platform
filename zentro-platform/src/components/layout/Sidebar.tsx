@@ -1,10 +1,12 @@
 import { NavLink } from "react-router-dom";
 import { Sparkles } from "lucide-react";
-import { usePlatform } from "../../lib/platformState";
-import { navigationItems, workspaceItems } from "./navigation";
+import { useAppSession } from "../../lib/appSession";
+import { navigationItems } from "./navigation";
 
 export function Sidebar() {
-  const { selectedProject } = usePlatform();
+  const { bootstrap, activeWorkspaceId, activeProjectId } = useAppSession();
+  const workspace = bootstrap?.workspaces?.find((item) => item.id === activeWorkspaceId);
+  const project = bootstrap?.projects?.find((item) => item.id === activeProjectId);
 
   return (
     <aside className="sidebar">
@@ -19,30 +21,14 @@ export function Sidebar() {
       </div>
 
       <div className="project-context">
-        <span>Current project</span>
-        <strong>{selectedProject.name}</strong>
-        <small>{selectedProject.environment}</small>
+        <span>Active context</span>
+        <strong>{project?.name ?? workspace?.name ?? "No project selected"}</strong>
+        <small>{workspace?.name ?? "Workspace from backend"}</small>
       </div>
 
       <nav className="sidebar-nav" aria-label="Primary navigation">
-        <span className="nav-section">Project</span>
+        <span className="nav-section">Platform</span>
         {navigationItems.map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-            >
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </NavLink>
-          );
-        })}
-
-        <span className="nav-section">Workspace</span>
-        {workspaceItems.map((item) => {
           const Icon = item.icon;
 
           return (
