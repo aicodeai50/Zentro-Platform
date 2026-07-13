@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { configureZentroApiAuth, type ApiContext, type SessionBootstrap, zentroApi } from "./zentroApi";
-import { isSupabaseConfigured, supabase } from "./supabaseClient";
+import { getSupabaseClient } from "./supabaseClient";
 
 type AppSessionContextValue = {
   authStatus: "loading" | "signed-out" | "signed-in" | "supabase-not-configured";
@@ -38,52 +38,71 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
   const [permissionDenied, setPermissionDenied] = useState(false);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      setAuthStatus("supabase-not-configured");
-      configureZentroApiAuth(null);
-      return;
-    }
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
 
-    const supabaseClient = supabase;
+    void getSupabaseClient()
+      .then((supabaseClient) => {
+        if (cancelled) {
+          return;
+        }
 
-    configureZentroApiAuth({
-      getSession: async () => {
-        const { data } = await supabaseClient.auth.getSession();
-        return data.session;
-      },
-      refreshSession: async () => {
-        const { data } = await supabaseClient.auth.refreshSession();
-        setSession(data.session);
-        return data.session;
-      },
-      onUnauthorized: () => {
-        setSession(null);
-        setBootstrap(null);
-        setActiveWorkspaceId(null);
-        setActiveProjectId(null);
-        setAuthStatus("signed-out");
-      },
-    });
+        if (!supabaseClient) {
+          setAuthStatus("supabase-not-configured");
+          configureZentroApiAuth(null);
+          return;
+        }
 
-    void supabaseClient.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setAuthStatus(data.session ? "signed-in" : "signed-out");
-    });
+        configureZentroApiAuth({
+          getSession: async () => {
+            const { data } = await supabaseClient.auth.getSession();
+            return data.session;
+          },
+          refreshSession: async () => {
+            const { data } = await supabaseClient.auth.refreshSession();
+            setSession(data.session);
+            return data.session;
+          },
+          onUnauthorized: () => {
+            setSession(null);
+            setBootstrap(null);
+            setActiveWorkspaceId(null);
+            setActiveProjectId(null);
+            setAuthStatus("signed-out");
+          },
+        });
 
-    const { data: listener } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setAuthStatus(nextSession ? "signed-in" : "signed-out");
+        void supabaseClient.auth.getSession().then(({ data }) => {
+          if (!cancelled) {
+            setSession(data.session);
+            setAuthStatus(data.session ? "signed-in" : "signed-out");
+          }
+        });
 
-      if (!nextSession) {
-        setBootstrap(null);
-        setActiveWorkspaceId(null);
-        setActiveProjectId(null);
-        clearPlatformSelections();
-      }
-    });
+        const { data: listener } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
+          setSession(nextSession);
+          setAuthStatus(nextSession ? "signed-in" : "signed-out");
+
+          if (!nextSession) {
+            setBootstrap(null);
+            setActiveWorkspaceId(null);
+            setActiveProjectId(null);
+            clearPlatformSelections();
+          }
+        });
+
+        unsubscribe = () => listener.subscription.unsubscribe();
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAuthStatus("supabase-not-configured");
+          configureZentroApiAuth(null);
+        }
+      });
 
     return () => {
-      listener.subscription.unsubscribe();
+      cancelled = true;
+      unsubscribe?.();
       configureZentroApiAuth(null);
     };
   }, []);
@@ -126,17 +145,21 @@ export function AppSessionProvider({ children }: { children: ReactNode }) {
   }, [session?.access_token]);
 
   async function signInWithEmail(email: string, password: string) {
-    if (!supabase) {
+    const supabaseClient = await getSupabaseClient();
+
+    if (!supabaseClient) {
       return "Supabase is not configured.";
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
     return error?.message ?? null;
   }
 
   async function signOut() {
-    if (supabase) {
-      await supabase.auth.signOut();
+    const supabaseClient = await getSupabaseClient();
+
+    if (supabaseClient) {
+      await supabaseClient.auth.signOut();
     }
 
     setSession(null);

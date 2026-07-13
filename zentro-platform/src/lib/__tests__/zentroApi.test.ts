@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetPublicConfigCacheForTests } from "../publicConfig";
 import { configureZentroApiAuth, zentroApi, zentroRequest } from "../zentroApi";
-
-const originalEnv = process.env.NEXT_PUBLIC_ZENTRO_API_URL;
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -10,20 +9,46 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function runtimeConfigResponse() {
+  return jsonResponse({
+    supabaseUrl: "https://supabase.example.test",
+    supabasePublishableKey: "publishable-key",
+    zentroApiUrl: "https://api.example.test/",
+    siteUrl: "https://app.example.test",
+  });
+}
+
+function stubRuntimeFetch(...apiResponses: Response[]) {
+  const responses = [...apiResponses];
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    if (String(input) === "/api/public-config") {
+      return runtimeConfigResponse();
+    }
+
+    return responses.shift() ?? jsonResponse({ ok: true });
+  });
+
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function apiCalls(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.filter((call) => String(call[0]) !== "/api/public-config");
+}
+
 describe("zentroApi client", () => {
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_ZENTRO_API_URL = "https://api.example.test";
     vi.restoreAllMocks();
+    resetPublicConfigCacheForTests();
   });
 
   afterEach(() => {
     configureZentroApiAuth(null);
-    process.env.NEXT_PUBLIC_ZENTRO_API_URL = originalEnv;
+    resetPublicConfigCacheForTests();
   });
 
   it("adds Supabase access token to authenticated requests", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubRuntimeFetch(jsonResponse({ ok: true }));
     configureZentroApiAuth({
       getSession: async () => ({ access_token: "access-token" }) as never,
       refreshSession: async () => null,
@@ -31,7 +56,7 @@ describe("zentroApi client", () => {
 
     await zentroRequest("/projects", {}, { authenticated: true });
 
-    const headers = fetchMock.mock.calls[0][1].headers as Headers;
+    const headers = apiCalls(fetchMock)[0][1].headers as Headers;
     expect(headers.get("Authorization")).toBe("Bearer access-token");
   });
 
@@ -41,13 +66,12 @@ describe("zentroApi client", () => {
       session = { access_token: "new-token" } as never;
       return session;
     });
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({}, 401))
-      .mockResolvedValueOnce(jsonResponse({}, 401))
-      .mockResolvedValueOnce(jsonResponse({ ok: true }))
-      .mockResolvedValueOnce(jsonResponse({ ok: true }));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubRuntimeFetch(
+      jsonResponse({}, 401),
+      jsonResponse({}, 401),
+      jsonResponse({ ok: true }),
+      jsonResponse({ ok: true })
+    );
     configureZentroApiAuth({
       getSession: async () => session,
       refreshSession,
@@ -59,13 +83,12 @@ describe("zentroApi client", () => {
     ]);
 
     expect(refreshSession).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(apiCalls(fetchMock)).toHaveLength(4);
   });
 
   it("retries only once after 401", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, 401));
+    const fetchMock = stubRuntimeFetch(jsonResponse({}, 401), jsonResponse({}, 401));
     const onUnauthorized = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
     configureZentroApiAuth({
       getSession: async () => ({ access_token: "token" }) as never,
       refreshSession: async () => ({ access_token: "new-token" }) as never,
@@ -74,15 +97,14 @@ describe("zentroApi client", () => {
 
     const result = await zentroRequest("/projects", {}, { authenticated: true });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(apiCalls(fetchMock)).toHaveLength(2);
     expect(result.status).toBe("unauthorized");
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 
   it("treats 403 as forbidden without logging out", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, 403));
+    stubRuntimeFetch(jsonResponse({}, 403));
     const onUnauthorized = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
     configureZentroApiAuth({
       getSession: async () => ({ access_token: "token" }) as never,
       refreshSession: async () => null,
@@ -96,8 +118,7 @@ describe("zentroApi client", () => {
   });
 
   it("omits workspace header before selection and scopes project headers to project calls", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubRuntimeFetch(jsonResponse([]), jsonResponse({}));
     configureZentroApiAuth({
       getSession: async () => ({ access_token: "token" }) as never,
       refreshSession: async () => null,
@@ -106,8 +127,9 @@ describe("zentroApi client", () => {
     await zentroApi.projects.list({});
     await zentroApi.projects.get("project-1", { workspaceId: "workspace-1" });
 
-    const listHeaders = fetchMock.mock.calls[0][1].headers as Headers;
-    const detailHeaders = fetchMock.mock.calls[1][1].headers as Headers;
+    const [listCall, detailCall] = apiCalls(fetchMock);
+    const listHeaders = listCall[1].headers as Headers;
+    const detailHeaders = detailCall[1].headers as Headers;
     expect(listHeaders.has("X-Workspace-Id")).toBe(false);
     expect(listHeaders.has("X-Project-Id")).toBe(false);
     expect(detailHeaders.get("X-Workspace-Id")).toBe("workspace-1");
@@ -115,8 +137,7 @@ describe("zentroApi client", () => {
   });
 
   it("uses exact canonical project API-key route paths", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubRuntimeFetch(jsonResponse([]), jsonResponse({}), jsonResponse({}), jsonResponse({}), jsonResponse({}));
     configureZentroApiAuth({
       getSession: async () => ({ access_token: "token" }) as never,
       refreshSession: async () => null,
@@ -128,7 +149,7 @@ describe("zentroApi client", () => {
     await zentroApi.developerApi.revokeProjectKey("p1", "k1");
     await zentroApi.developerApi.projectKeyUsage("p1", "k1");
 
-    expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([
+    expect(apiCalls(fetchMock).map((call) => String(call[0]))).toEqual([
       "https://api.example.test/projects/p1/api-keys",
       "https://api.example.test/projects/p1/api-keys",
       "https://api.example.test/projects/p1/api-keys/k1/rotate",
@@ -138,8 +159,7 @@ describe("zentroApi client", () => {
   });
 
   it("uses canonical workspace API-key metadata path", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubRuntimeFetch(jsonResponse([]));
     configureZentroApiAuth({
       getSession: async () => ({ access_token: "token" }) as never,
       refreshSession: async () => null,
@@ -147,11 +167,20 @@ describe("zentroApi client", () => {
 
     await zentroApi.developerApi.keys();
 
-    expect(String(fetchMock.mock.calls[0][0])).toBe("https://api.example.test/api-keys");
+    expect(String(apiCalls(fetchMock)[0][0])).toBe("https://api.example.test/api-keys");
+  });
+
+  it("uses the runtime backend URL from public config", async () => {
+    const fetchMock = stubRuntimeFetch(jsonResponse({ ok: true }));
+
+    await zentroRequest("/health");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/public-config", { cache: "no-store" });
+    expect(String(apiCalls(fetchMock)[0][0])).toBe("https://api.example.test/health");
   });
 
   it("returns contract-error for malformed validated responses", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ not: "an array" })));
+    stubRuntimeFetch(jsonResponse({ not: "an array" }));
     configureZentroApiAuth({
       getSession: async () => ({ access_token: "token" }) as never,
       refreshSession: async () => null,

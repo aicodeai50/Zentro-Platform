@@ -1,16 +1,27 @@
 import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getPublicConfig } from "./publicConfig";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+let supabaseClientPromise: Promise<SupabaseClient | null> | null = null;
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublishableKey);
+export function getSupabaseClient() {
+  supabaseClientPromise ??= getPublicConfig().then((config) => {
+    if (!config.supabaseUrl || !config.supabasePublishableKey) {
+      return null;
+    }
 
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl!, supabasePublishableKey!, {
+    return createClient(config.supabaseUrl, config.supabasePublishableKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
       },
-    })
-  : null;
+    });
+  });
+
+  return supabaseClientPromise;
+}
+
+export function resetSupabaseClientForTests() {
+  supabaseClientPromise = null;
+}

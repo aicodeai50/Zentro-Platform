@@ -1,4 +1,5 @@
 import { Bell, Moon, Search, Sun } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAppSession } from "../../lib/appSession";
 import { zentroApi } from "../../lib/zentroApi";
 
@@ -17,8 +18,23 @@ export function Topbar({ theme, onToggleTheme }: TopbarProps) {
     selectProject,
     signOut,
   } = useAppSession();
+  const [hasApiUrl, setHasApiUrl] = useState(false);
   const workspaces = bootstrap?.workspaces ?? [];
   const projects = bootstrap?.projects ?? [];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void zentroApi.getBaseUrl().then((baseUrl) => {
+      if (!cancelled) {
+        setHasApiUrl(Boolean(baseUrl));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <header className="topbar">
@@ -52,7 +68,7 @@ export function Topbar({ theme, onToggleTheme }: TopbarProps) {
         </label>
         <div className="balance-pill">
           <span>API</span>
-          <strong>{zentroApi.baseUrl ? "Connected" : "Configure URL"}</strong>
+          <strong>{hasApiUrl ? "Connected" : "Configure URL"}</strong>
         </div>
         <button
           className="icon-button"

@@ -1,5 +1,6 @@
 import type { Session } from "@supabase/supabase-js";
 import { z } from "zod";
+import { getPublicConfig } from "./publicConfig";
 
 export type ApiStatus =
   | "success"
@@ -184,8 +185,9 @@ export function configureZentroApiAuth(bridge: AuthBridge | null) {
   refreshPromise = null;
 }
 
-export function getZentroApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_ZENTRO_API_URL?.replace(/\/$/, "") ?? "";
+export async function getZentroApiBaseUrl() {
+  const config = await getPublicConfig();
+  return config.zentroApiUrl.replace(/\/$/, "");
 }
 
 export async function zentroRequest<T>(
@@ -198,13 +200,13 @@ export async function zentroRequest<T>(
     schema?: z.ZodType<T>;
   } = {}
 ): Promise<ApiResult<T>> {
-  const baseUrl = getZentroApiBaseUrl();
+  const baseUrl = await getZentroApiBaseUrl();
 
   if (!baseUrl) {
     return {
       status: "missing-config",
       endpoint,
-      message: "Set NEXT_PUBLIC_ZENTRO_API_URL to connect Zentro Platform to ZENTRO-OWN-API-V2.",
+      message: "Set NEXT_PUBLIC_ZENTRO_API_URL at runtime to connect Zentro Platform to ZENTRO-OWN-API-V2.",
     };
   }
 
@@ -340,9 +342,7 @@ async function parseResponseBody(response: Response) {
 }
 
 export const zentroApi = {
-  get baseUrl() {
-    return getZentroApiBaseUrl();
-  },
+  getBaseUrl: getZentroApiBaseUrl,
   session: {
     bootstrap: (context?: ApiContext) =>
       zentroRequest<SessionBootstrap>("/api/auth/session", {}, { authenticated: true, context, schema: sessionBootstrapSchema }),

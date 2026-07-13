@@ -26,8 +26,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <span className="eyebrow">Configuration required</span>
           <h1>Supabase login is not configured</h1>
           <p className="muted-text">
-            Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. Service role keys and JWT secrets
-            must never be exposed in the frontend.
+            Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in the runtime environment. Privileged backend
+            secrets must never be exposed in the frontend.
           </p>
         </Card>
       </main>
