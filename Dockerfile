@@ -3,7 +3,7 @@ FROM node:22-alpine
 WORKDIR /app
 
 COPY zentro-platform/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY zentro-platform ./
 RUN npm run build
