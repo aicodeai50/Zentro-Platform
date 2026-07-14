@@ -12,6 +12,7 @@ export type ApiStatus =
   | "contract-error"
   | "backend-unavailable"
   | "capability-required"
+  | "rate-limited"
   | "error";
 
 export type ApiResult<T> =
@@ -24,6 +25,7 @@ export type ApiResult<T> =
   | { status: "contract-error"; endpoint: string; message: string; details?: unknown }
   | { status: "backend-unavailable"; endpoint: string; message: string; statusCode?: number }
   | { status: "capability-required"; endpoint: string; message: string; statusCode: number }
+  | { status: "rate-limited"; endpoint: string; message: string; statusCode: 429; details?: unknown }
   | { status: "error"; endpoint: string; message: string; statusCode?: number };
 
 export type ApiContext = {
@@ -95,6 +97,28 @@ export type CreateProjectPayload = {
   name: string;
   description?: string;
   environment?: string;
+};
+export type PlaygroundInferencePayload = {
+  provider: string;
+  model: string;
+  temperature: number;
+  privacyMode: string;
+  systemPrompt: string;
+  userPrompt: string;
+  stream?: boolean;
+};
+export type PlaygroundInferenceResult = z.infer<typeof playgroundInferenceSchema>;
+export type ProjectLogs = z.infer<typeof projectLogsSchema>;
+export type BillingUsage = z.infer<typeof billingUsageSchema>;
+export type BillingSummary = z.infer<typeof billingSummarySchema>;
+export type WorkspaceCredits = z.infer<typeof workspaceCreditsSchema>;
+export type WorkspaceTransactions = z.infer<typeof workspaceTransactionsSchema>;
+export type Webhook = z.infer<typeof webhookSchema>;
+export type WebhookActionResult = z.infer<typeof webhookActionSchema>;
+export type ProjectMember = z.infer<typeof projectMemberSchema>;
+export type ProjectMemberPayload = {
+  email?: string;
+  role?: string;
 };
 
 const userSchema = z.object({ id: z.string().optional(), email: z.string().optional(), name: z.string().optional() }).passthrough();
@@ -176,6 +200,72 @@ const apiKeyActionSchema = z
   .passthrough();
 const analyticsSchema = z.record(z.string(), z.unknown());
 const settingsSchema = z.record(z.string(), z.unknown());
+const playgroundInferenceSchema = z
+  .object({
+    response: z.unknown().optional(),
+    content: z.unknown().optional(),
+    text: z.string().optional(),
+    provider: z.string().optional(),
+    providerUsed: z.string().optional(),
+    model: z.string().optional(),
+    modelUsed: z.string().optional(),
+    latency: z.union([z.number(), z.string()]).optional(),
+    latencyMs: z.union([z.number(), z.string()]).optional(),
+    tokenUsage: z.unknown().optional(),
+    usage: z.unknown().optional(),
+    requestId: z.string().optional(),
+    id: z.string().optional(),
+    error: z.unknown().optional(),
+  })
+  .passthrough();
+const projectLogsSchema = z
+  .object({
+    items: z.array(z.record(z.string(), z.unknown())).optional(),
+    logs: z.array(z.record(z.string(), z.unknown())).optional(),
+    data: z.array(z.record(z.string(), z.unknown())).optional(),
+    nextCursor: z.string().nullable().optional(),
+    cursor: z.string().nullable().optional(),
+    page: z.union([z.number(), z.string()]).optional(),
+    total: z.union([z.number(), z.string()]).optional(),
+  })
+  .passthrough();
+const billingUsageSchema = z.record(z.string(), z.unknown());
+const billingSummarySchema = z.record(z.string(), z.unknown());
+const workspaceCreditsSchema = z.record(z.string(), z.unknown());
+const workspaceTransactionsSchema = z
+  .object({
+    items: z.array(z.record(z.string(), z.unknown())).optional(),
+    transactions: z.array(z.record(z.string(), z.unknown())).optional(),
+    data: z.array(z.record(z.string(), z.unknown())).optional(),
+  })
+  .passthrough();
+const webhookSchema = z
+  .object({
+    id: z.string().optional(),
+    url: z.string().optional(),
+    events: z.array(z.string()).optional(),
+    status: z.string().optional(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+  })
+  .passthrough();
+const webhookActionSchema = webhookSchema
+  .extend({
+    signingSecret: z.string().optional(),
+    secret: z.string().optional(),
+  })
+  .passthrough();
+const projectMemberSchema = z
+  .object({
+    id: z.string().optional(),
+    userId: z.string().optional(),
+    email: z.string().optional(),
+    name: z.string().optional(),
+    role: z.string().optional(),
+    status: z.string().optional(),
+    createdAt: z.string().optional(),
+  })
+  .passthrough();
 
 let authBridge: AuthBridge | null = null;
 let refreshPromise: Promise<Session | null> | null = null;
@@ -183,6 +273,15 @@ let refreshPromise: Promise<Session | null> | null = null;
 export function configureZentroApiAuth(bridge: AuthBridge | null) {
   authBridge = bridge;
   refreshPromise = null;
+}
+
+export function backendCapabilityRequired<T>(endpoint: string): ApiResult<T> {
+  return {
+    status: "capability-required",
+    endpoint,
+    statusCode: 501,
+    message: "Backend capability required",
+  };
 }
 
 export async function getZentroApiBaseUrl() {
@@ -266,6 +365,10 @@ export async function zentroRequest<T>(
       return { status: "forbidden", endpoint, statusCode: 403, message: "Permission denied." };
     }
 
+    if (response.status === 429) {
+      return { status: "rate-limited", endpoint, statusCode: 429, message: "Rate limit exceeded.", details: await parseResponseBody(response) };
+    }
+
     if (response.status === 404 || response.status === 405 || response.status === 501) {
       return { status: "capability-required", endpoint, statusCode: response.status, message: "Backend capability unavailable." };
     }
@@ -281,7 +384,12 @@ export async function zentroRequest<T>(
     }
 
     if (response.status >= 500) {
-      return { status: "backend-unavailable", endpoint, statusCode: response.status, message: `Backend unavailable. HTTP ${response.status}.` };
+      return {
+        status: "backend-unavailable",
+        endpoint,
+        statusCode: response.status,
+        message: safeBackendErrorMessage(await parseResponseBody(response), response.status),
+      };
     }
 
     if (!response.ok) {
@@ -390,6 +498,100 @@ export const zentroApi = {
       zentroRequest<AnalyticsSummary>(`/projects/${encodeURIComponent(projectId)}/analytics`, {}, { authenticated: true, context: { ...context, projectId }, schema: analyticsSchema }),
     health: (projectId: string, context?: ApiContext) =>
       zentroRequest<HealthStatus>(`/projects/${encodeURIComponent(projectId)}/health`, {}, { authenticated: true, context: { ...context, projectId }, schema: healthSchema }),
+    inference: (projectId: string, payload: PlaygroundInferencePayload, context?: ApiContext) =>
+      zentroRequest<PlaygroundInferenceResult>(
+        `/v1/projects/${encodeURIComponent(projectId)}/playground/inference`,
+        { method: "POST", body: JSON.stringify(payload) },
+        { authenticated: true, context: { ...context, projectId }, schema: playgroundInferenceSchema }
+      ),
+    logs: (projectId: string, query: Record<string, string | undefined> = {}, context?: ApiContext) =>
+      zentroRequest<ProjectLogs>(
+        `/v1/projects/${encodeURIComponent(projectId)}/logs${toQueryString(query)}`,
+        {},
+        { authenticated: true, context: { ...context, projectId }, schema: projectLogsSchema }
+      ),
+    billingUsage: (projectId: string, context?: ApiContext) =>
+      zentroRequest<BillingUsage>(
+        `/v1/projects/${encodeURIComponent(projectId)}/billing/usage`,
+        {},
+        { authenticated: true, context: { ...context, projectId }, schema: billingUsageSchema }
+      ),
+    members: (projectId: string, context?: ApiContext) =>
+      zentroRequest<ProjectMember[]>(
+        `/v1/projects/${encodeURIComponent(projectId)}/members`,
+        {},
+        { authenticated: true, context: { ...context, projectId }, schema: z.array(projectMemberSchema) }
+      ),
+    addMember: (projectId: string, payload: ProjectMemberPayload, context?: ApiContext) =>
+      zentroRequest<ProjectMember>(
+        `/v1/projects/${encodeURIComponent(projectId)}/members`,
+        { method: "POST", body: JSON.stringify(payload) },
+        { authenticated: true, context: { ...context, projectId }, schema: projectMemberSchema }
+      ),
+    updateMember: (projectId: string, memberId: string, payload: ProjectMemberPayload, context?: ApiContext) =>
+      zentroRequest<ProjectMember>(
+        `/v1/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(memberId)}`,
+        { method: "PATCH", body: JSON.stringify(payload) },
+        { authenticated: true, context: { ...context, projectId }, schema: projectMemberSchema }
+      ),
+    removeMember: (projectId: string, memberId: string, context?: ApiContext) =>
+      zentroRequest<unknown>(
+        `/v1/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(memberId)}`,
+        { method: "DELETE" },
+        { authenticated: true, context: { ...context, projectId } }
+      ),
+  },
+  billing: {
+    summary: (workspaceId: string, context?: ApiContext) =>
+      zentroRequest<BillingSummary>(
+        `/v1/workspaces/${encodeURIComponent(workspaceId)}/billing/summary`,
+        {},
+        { authenticated: true, context: { ...context, workspaceId }, schema: billingSummarySchema }
+      ),
+    credits: (workspaceId: string, context?: ApiContext) =>
+      zentroRequest<WorkspaceCredits>(
+        `/v1/workspaces/${encodeURIComponent(workspaceId)}/credits`,
+        {},
+        { authenticated: true, context: { ...context, workspaceId }, schema: workspaceCreditsSchema }
+      ),
+    transactions: (workspaceId: string, context?: ApiContext) =>
+      zentroRequest<WorkspaceTransactions>(
+        `/v1/workspaces/${encodeURIComponent(workspaceId)}/transactions`,
+        {},
+        { authenticated: true, context: { ...context, workspaceId }, schema: workspaceTransactionsSchema }
+      ),
+  },
+  webhooks: {
+    list: (projectId: string, context?: ApiContext) =>
+      zentroRequest<Webhook[]>(
+        `/v1/projects/${encodeURIComponent(projectId)}/webhooks`,
+        {},
+        { authenticated: true, context: { ...context, projectId }, schema: z.array(webhookSchema) }
+      ),
+    create: (projectId: string, payload: Record<string, unknown>, context?: ApiContext) =>
+      zentroRequest<WebhookActionResult>(
+        `/v1/projects/${encodeURIComponent(projectId)}/webhooks`,
+        { method: "POST", body: JSON.stringify(payload) },
+        { authenticated: true, context: { ...context, projectId }, schema: webhookActionSchema }
+      ),
+    update: (projectId: string, webhookId: string, payload: Record<string, unknown>, context?: ApiContext) =>
+      zentroRequest<Webhook>(
+        `/v1/projects/${encodeURIComponent(projectId)}/webhooks/${encodeURIComponent(webhookId)}`,
+        { method: "PATCH", body: JSON.stringify(payload) },
+        { authenticated: true, context: { ...context, projectId }, schema: webhookSchema }
+      ),
+    delete: (projectId: string, webhookId: string, context?: ApiContext) =>
+      zentroRequest<unknown>(
+        `/v1/projects/${encodeURIComponent(projectId)}/webhooks/${encodeURIComponent(webhookId)}`,
+        { method: "DELETE" },
+        { authenticated: true, context: { ...context, projectId } }
+      ),
+    test: (projectId: string, webhookId: string, context?: ApiContext) =>
+      zentroRequest<unknown>(
+        `/v1/projects/${encodeURIComponent(projectId)}/webhooks/${encodeURIComponent(webhookId)}/test`,
+        { method: "POST" },
+        { authenticated: true, context: { ...context, projectId } }
+      ),
   },
   ai: {
     providers: (context?: ApiContext) =>
@@ -440,3 +642,33 @@ export const zentroApi = {
       zentroRequest<BackendSettings>("/settings", { method: "PATCH", body: JSON.stringify(payload) }, { authenticated: true, context, schema: settingsSchema }),
   },
 };
+
+function toQueryString(query: Record<string, string | undefined>) {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const serialized = params.toString();
+  return serialized ? `?${serialized}` : "";
+}
+
+function safeBackendErrorMessage(body: unknown, status: number) {
+  if (!body || typeof body !== "object") {
+    return `Backend unavailable. HTTP ${status}.`;
+  }
+
+  const record = body as Record<string, unknown>;
+  const error = typeof record.error === "string" ? record.error : undefined;
+  const message = typeof record.message === "string" ? record.message : undefined;
+  const safe = error ?? message;
+
+  return safe ? redactSecretLikeText(safe) : `Backend unavailable. HTTP ${status}.`;
+}
+
+function redactSecretLikeText(value: string) {
+  return value.replace(/(?:sk|pk|whsec|zentro)_[A-Za-z0-9_-]+/g, "[redacted]");
+}

@@ -4,7 +4,7 @@ import { BackendState, ValueList } from "../components/ui/BackendState";
 import { PageHeader } from "../components/ui/PageHeader";
 import { useAppSession } from "../lib/appSession";
 import { useApiResource } from "../lib/useApiResource";
-import { zentroApi, type ApiKeyActionResult } from "../lib/zentroApi";
+import { zentroApi, type ApiKeyActionResult, type ApiKeyMetadata } from "../lib/zentroApi";
 
 export function ApiPortal() {
   const { apiContext, activeProjectId } = useAppSession();
@@ -111,7 +111,28 @@ export function ApiPortal() {
               <h2>Project API keys</h2>
               <span>GET /projects/:projectId/api-keys</span>
             </div>
-            <ValueList value={data} />
+            {data.length ? (
+              <div className="table-list">
+                {data.map((key, index) => (
+                  <div className="table-row api-key-row" key={key.id ?? index}>
+                    <div className="key-title">
+                      <strong>{key.name ?? key.id ?? "Backend key"}</strong>
+                      <span>{key.prefix ?? "Prefix not returned"}</span>
+                    </div>
+                    <div><strong>{formatKeyField(key, "projectId")}</strong><span>Project</span></div>
+                    <div><strong>{formatKeyField(key, "workspaceId")}</strong><span>Workspace</span></div>
+                    <div><strong>{key.status ?? "Not returned"}</strong><span>Status</span></div>
+                    <div><strong>{key.lastUsedAt ?? "Not returned"}</strong><span>Last used</span></div>
+                    <div><strong>{key.createdAt ?? "Not returned"}</strong><span>Created</span></div>
+                    <div><strong>{key.scopes?.join(", ") ?? "Not returned"}</strong><span>Permissions</span></div>
+                    <button className="ghost-button" type="button" onClick={() => setKeyId(key.id ?? "")}>Rotate</button>
+                    <button className="danger-button" type="button" onClick={() => setKeyId(key.id ?? "")}>Revoke</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">No API keys returned by backend.</p>
+            )}
           </Card>
         )}
       </BackendState>
@@ -174,4 +195,9 @@ export function ApiPortal() {
 
 function extractSecret(result: ApiKeyActionResult) {
   return result.secret ?? result.token ?? result.value ?? null;
+}
+
+function formatKeyField(key: ApiKeyMetadata, field: "projectId" | "workspaceId") {
+  const value = (key as ApiKeyMetadata & Record<string, unknown>)[field];
+  return typeof value === "string" && value ? value : "Not returned";
 }
