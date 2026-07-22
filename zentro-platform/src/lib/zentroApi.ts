@@ -143,6 +143,22 @@ export type UsageQuery = {
   cursor?: string;
   page?: string;
 };
+export type OperationsQuery = {
+  range?: string;
+  provider?: string;
+  status?: string;
+  capability?: string;
+  search?: string;
+  model?: string;
+};
+export type OperationsSummary = z.infer<typeof operationsSummarySchema>;
+export type OperationsProviders = z.infer<typeof operationsProvidersSchema>;
+export type OperationsProviderDetail = z.infer<typeof operationsProviderDetailSchema>;
+export type OperationsModels = z.infer<typeof operationsModelsSchema>;
+export type OperationsFallbacks = z.infer<typeof operationsFallbacksSchema>;
+export type OperationsErrors = z.infer<typeof operationsErrorsSchema>;
+export type OperationsIncidents = z.infer<typeof operationsIncidentsSchema>;
+export type LocalModelsResponse = z.infer<typeof localModelsResponseSchema>;
 export type Webhook = z.infer<typeof webhookSchema>;
 export type WebhookActionResult = z.infer<typeof webhookActionSchema>;
 export type ProjectMember = z.infer<typeof projectMemberSchema>;
@@ -385,6 +401,103 @@ const usageApiKeysResponseSchema = z.union([
       keys: z.array(usageApiKeyRowSchema).optional(),
       items: z.array(usageApiKeyRowSchema).optional(),
       data: z.array(usageApiKeyRowSchema).optional(),
+    })
+    .passthrough(),
+]);
+const operationsSummarySchema = z.record(z.string(), z.unknown());
+const operationsProviderRowSchema = z
+  .object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    provider: z.string().optional(),
+    status: z.string().optional(),
+    enabled: z.union([z.boolean(), z.string()]).optional(),
+    lastSuccessfulCheck: z.string().optional(),
+    lastFailedCheck: z.string().optional(),
+    averageLatency: z.union([z.number(), z.string()]).optional(),
+    p95Latency: z.union([z.number(), z.string()]).optional(),
+    successRate: z.union([z.number(), z.string()]).optional(),
+    errorRate: z.union([z.number(), z.string()]).optional(),
+    requests: z.union([z.number(), z.string()]).optional(),
+    activeModels: z.union([z.number(), z.string(), z.array(z.unknown())]).optional(),
+    incidentSummary: z.string().optional(),
+  })
+  .passthrough();
+const operationsProvidersSchema = z.union([
+  z.array(operationsProviderRowSchema),
+  z
+    .object({
+      providers: z.array(operationsProviderRowSchema).optional(),
+      items: z.array(operationsProviderRowSchema).optional(),
+      data: z.array(operationsProviderRowSchema).optional(),
+    })
+    .passthrough(),
+]);
+const operationsProviderDetailSchema = z.record(z.string(), z.unknown());
+const operationsModelRowSchema = z
+  .object({
+    model: z.string().optional(),
+    name: z.string().optional(),
+    canonicalName: z.string().optional(),
+    provider: z.string().optional(),
+    availability: z.string().optional(),
+    status: z.string().optional(),
+    streaming: z.union([z.boolean(), z.string()]).optional(),
+    contextWindow: z.union([z.number(), z.string()]).optional(),
+    requestCount: z.union([z.number(), z.string()]).optional(),
+    successRate: z.union([z.number(), z.string()]).optional(),
+    averageLatency: z.union([z.number(), z.string()]).optional(),
+    p95Latency: z.union([z.number(), z.string()]).optional(),
+    errorRate: z.union([z.number(), z.string()]).optional(),
+    fallbackUsage: z.union([z.number(), z.string()]).optional(),
+    lastSuccessfulRequest: z.string().optional(),
+    lastFailedRequest: z.string().optional(),
+  })
+  .passthrough();
+const operationsModelsSchema = z.union([
+  z.array(operationsModelRowSchema),
+  z
+    .object({
+      models: z.array(operationsModelRowSchema).optional(),
+      localModels: z.array(operationsModelRowSchema).optional(),
+      items: z.array(operationsModelRowSchema).optional(),
+      data: z.array(operationsModelRowSchema).optional(),
+    })
+    .passthrough(),
+]);
+const operationsFallbacksSchema = z.union([
+  z.array(z.record(z.string(), z.unknown())),
+  z
+    .object({
+      fallbacks: z.array(z.record(z.string(), z.unknown())).optional(),
+      events: z.array(z.record(z.string(), z.unknown())).optional(),
+      items: z.array(z.record(z.string(), z.unknown())).optional(),
+      data: z.array(z.record(z.string(), z.unknown())).optional(),
+    })
+    .passthrough(),
+]);
+const operationsErrorsSchema = z.union([
+  z.array(z.record(z.string(), z.unknown())),
+  z.record(z.string(), z.unknown()),
+]);
+const operationsIncidentsSchema = z.union([
+  z.array(z.record(z.string(), z.unknown())),
+  z
+    .object({
+      incidents: z.array(z.record(z.string(), z.unknown())).optional(),
+      items: z.array(z.record(z.string(), z.unknown())).optional(),
+      data: z.array(z.record(z.string(), z.unknown())).optional(),
+    })
+    .passthrough(),
+]);
+const localModelsResponseSchema = z.union([
+  z.array(z.record(z.string(), z.unknown())),
+  z
+    .object({
+      models: z.array(z.record(z.string(), z.unknown())).optional(),
+      localModels: z.array(z.record(z.string(), z.unknown())).optional(),
+      items: z.array(z.record(z.string(), z.unknown())).optional(),
+      data: z.array(z.record(z.string(), z.unknown())).optional(),
     })
     .passthrough(),
 ]);
@@ -745,6 +858,28 @@ export const zentroApi = {
   ai: {
     providers: (context?: ApiContext) =>
       zentroRequest<AiControlCenter>("/providers", {}, { authenticated: true, context, schema: z.record(z.string(), z.unknown()) }),
+    localModels: (context?: ApiContext) =>
+      zentroRequest<LocalModelsResponse>("/models/local", {}, { authenticated: true, context, schema: localModelsResponseSchema }),
+  },
+  operations: {
+    summary: (query: OperationsQuery = {}, context?: ApiContext) =>
+      zentroRequest<OperationsSummary>(`/v1/operations/summary${toQueryString(query)}`, {}, { authenticated: true, context, schema: operationsSummarySchema }),
+    providers: (query: OperationsQuery = {}, context?: ApiContext) =>
+      zentroRequest<OperationsProviders>(`/v1/operations/providers${toQueryString(query)}`, {}, { authenticated: true, context, schema: operationsProvidersSchema }),
+    provider: (provider: string, query: OperationsQuery = {}, context?: ApiContext) =>
+      zentroRequest<OperationsProviderDetail>(
+        `/v1/operations/providers/${encodeURIComponent(provider)}${toQueryString(query)}`,
+        {},
+        { authenticated: true, context, schema: operationsProviderDetailSchema }
+      ),
+    models: (query: OperationsQuery = {}, context?: ApiContext) =>
+      zentroRequest<OperationsModels>(`/v1/operations/models${toQueryString(query)}`, {}, { authenticated: true, context, schema: operationsModelsSchema }),
+    fallbacks: (query: OperationsQuery = {}, context?: ApiContext) =>
+      zentroRequest<OperationsFallbacks>(`/v1/operations/fallbacks${toQueryString(query)}`, {}, { authenticated: true, context, schema: operationsFallbacksSchema }),
+    errors: (query: OperationsQuery = {}, context?: ApiContext) =>
+      zentroRequest<OperationsErrors>(`/v1/operations/errors${toQueryString(query)}`, {}, { authenticated: true, context, schema: operationsErrorsSchema }),
+    incidents: (query: OperationsQuery = {}, context?: ApiContext) =>
+      zentroRequest<OperationsIncidents>(`/v1/operations/incidents${toQueryString(query)}`, {}, { authenticated: true, context, schema: operationsIncidentsSchema }),
   },
   developerApi: {
     keys: (context?: ApiContext) =>

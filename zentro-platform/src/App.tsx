@@ -10,6 +10,7 @@ import { Documentation } from "./views/Documentation";
 import { Health } from "./views/Health";
 import { Home } from "./views/Home";
 import { Logs } from "./views/Logs";
+import { Operations } from "./views/Operations";
 import { Organizations } from "./views/Organizations";
 import { Playground } from "./views/Playground";
 import { Projects } from "./views/Projects";
@@ -44,6 +45,7 @@ export function App() {
           <Route path="/usage" element={<Usage />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/billing" element={<Billing />} />
+          <Route path="/operations" element={<Operations />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/webhooks" element={<Webhooks />} />
           <Route path="/documentation" element={<Documentation />} />

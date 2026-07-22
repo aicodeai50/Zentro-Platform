@@ -576,6 +576,39 @@ a.ghost-button {
   font-weight: 600;
 }
 
+.provider-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-status-glyph {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.provider-status-healthy .provider-status-glyph {
+  color: var(--success);
+}
+
+.provider-status-degraded .provider-status-glyph {
+  color: var(--warning);
+}
+
+.provider-status-offline .provider-status-glyph {
+  color: var(--danger);
+}
+
+.provider-status-disabled .provider-status-glyph,
+.provider-status-unknown .provider-status-glyph {
+  color: var(--muted);
+}
+
+.ops-detail-card {
+  width: min(1100px, 100%);
+  margin-bottom: 16px;
+}
+
 .modal-backdrop {
   position: fixed;
   z-index: 30;

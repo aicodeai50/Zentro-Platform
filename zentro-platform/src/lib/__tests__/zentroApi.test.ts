@@ -413,4 +413,47 @@ describe("zentroApi client", () => {
     const result = await zentroApi.usage.summary({ range: "7d" });
     expect(result.status).toBe("capability-required");
   });
+
+  it("uses exact Phase G3 operations route paths with auth headers", async () => {
+    const fetchMock = stubRuntimeFetch(
+      jsonResponse({ totalRequests: 10 }),
+      jsonResponse([{ name: "groq", status: "healthy" }]),
+      jsonResponse({ status: "healthy", latencyTrend: [] }),
+      jsonResponse([{ model: "llama", provider: "groq" }]),
+      jsonResponse({ fallbacks: [] }),
+      jsonResponse({ byProvider: [] }),
+      jsonResponse({ incidents: [] }),
+      jsonResponse([{ name: "local-model" }])
+    );
+    configureZentroApiAuth({
+      getSession: async () => ({ access_token: "ops-token" }) as never,
+      refreshSession: async () => null,
+    });
+
+    const context = { workspaceId: "w1", projectId: "p1" };
+    await zentroApi.operations.summary({ range: "24h" }, context);
+    await zentroApi.operations.providers({ range: "7d" }, context);
+    await zentroApi.operations.provider("groq", { range: "1h" }, context);
+    await zentroApi.operations.models({ range: "30d" }, context);
+    await zentroApi.operations.fallbacks({ range: "24h" }, context);
+    await zentroApi.operations.errors({ range: "24h" }, context);
+    await zentroApi.operations.incidents({ range: "7d" }, context);
+    await zentroApi.ai.localModels(context);
+
+    expect(apiCalls(fetchMock).map((call) => String(call[0]))).toEqual([
+      "https://api.example.test/v1/operations/summary?range=24h",
+      "https://api.example.test/v1/operations/providers?range=7d",
+      "https://api.example.test/v1/operations/providers/groq?range=1h",
+      "https://api.example.test/v1/operations/models?range=30d",
+      "https://api.example.test/v1/operations/fallbacks?range=24h",
+      "https://api.example.test/v1/operations/errors?range=24h",
+      "https://api.example.test/v1/operations/incidents?range=7d",
+      "https://api.example.test/models/local",
+    ]);
+
+    const headers = apiCalls(fetchMock)[0][1].headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer ops-token");
+    expect(headers.get("X-Workspace-Id")).toBe("w1");
+    expect(headers.get("X-Project-Id")).toBe("p1");
+  });
 });
