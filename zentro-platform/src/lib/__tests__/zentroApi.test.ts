@@ -414,6 +414,37 @@ describe("zentroApi client", () => {
     expect(result.status).toBe("capability-required");
   });
 
+  it("uses Phase G4 gateway and OpenAPI probe paths", async () => {
+    const fetchMock = stubRuntimeFetch(
+      jsonResponse({ data: [{ id: "model-a" }] }),
+      jsonResponse({ id: "chat" }),
+      jsonResponse({ id: "text" }),
+      jsonResponse({ message: "missing" }, 404),
+      jsonResponse({ openapi: "3.0.0", paths: { "/v1/chat/completions": { post: {} } } })
+    );
+    configureZentroApiAuth({
+      getSession: async () => ({ access_token: "gateway-token" }) as never,
+      refreshSession: async () => null,
+    });
+
+    await zentroApi.gateway.models({ workspaceId: "w1", projectId: "p1" });
+    await zentroApi.gateway.chatCompletions({ model: "auto", messages: [{ role: "user", content: "hi" }] }, { workspaceId: "w1" }, "zt_test_key");
+    await zentroApi.gateway.completions({ model: "auto", prompt: "hi" }, { workspaceId: "w1" });
+    await zentroApi.gateway.openApi();
+
+    const urls = apiCalls(fetchMock).map((call) => String(call[0]));
+    expect(urls).toEqual([
+      "https://api.example.test/v1/models",
+      "https://api.example.test/v1/chat/completions",
+      "https://api.example.test/v1/completions",
+      "https://api.example.test/openapi.json",
+      "https://api.example.test/api-json",
+    ]);
+
+    const chatHeaders = apiCalls(fetchMock)[1][1].headers as Headers;
+    expect(chatHeaders.get("Authorization")).toBe("Bearer zt_test_key");
+  });
+
   it("uses exact Phase G3 operations route paths with auth headers", async () => {
     const fetchMock = stubRuntimeFetch(
       jsonResponse({ totalRequests: 10 }),

@@ -114,7 +114,26 @@ export type PlaygroundInferencePayload = {
   systemPrompt: string;
   userPrompt: string;
   stream?: boolean;
+  maxTokens?: number;
 };
+export type ChatCompletionsPayload = {
+  model: string;
+  messages: Array<{ role: string; content: string }>;
+  temperature?: number;
+  max_tokens?: number;
+  stream?: boolean;
+  provider?: string;
+};
+export type TextCompletionsPayload = {
+  model: string;
+  prompt: string;
+  temperature?: number;
+  max_tokens?: number;
+  stream?: boolean;
+  provider?: string;
+};
+export type GatewayModelsResponse = z.infer<typeof gatewayModelsResponseSchema>;
+export type OpenApiDocument = z.infer<typeof openApiDocumentSchema>;
 export type PlaygroundInferenceResult = z.infer<typeof playgroundInferenceSchema>;
 export type ProjectLogs = z.infer<typeof projectLogsSchema>;
 export type BillingUsage = z.infer<typeof billingUsageSchema>;
@@ -501,6 +520,27 @@ const localModelsResponseSchema = z.union([
     })
     .passthrough(),
 ]);
+const gatewayModelsResponseSchema = z.union([
+  z.array(z.record(z.string(), z.unknown())),
+  z
+    .object({
+      data: z.array(z.record(z.string(), z.unknown())).optional(),
+      models: z.array(z.record(z.string(), z.unknown())).optional(),
+      items: z.array(z.record(z.string(), z.unknown())).optional(),
+      object: z.string().optional(),
+    })
+    .passthrough(),
+]);
+const openApiDocumentSchema = z
+  .object({
+    openapi: z.string().optional(),
+    swagger: z.string().optional(),
+    paths: z.record(z.string(), z.unknown()).optional(),
+    info: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
+const chatCompletionsSchema = z.record(z.string(), z.unknown());
+const textCompletionsSchema = z.record(z.string(), z.unknown());
 const webhookSchema = z
   .object({
     id: z.string().optional(),
@@ -556,6 +596,7 @@ export async function zentroRequest<T>(
   init: RequestInit = {},
   options: {
     authenticated?: boolean;
+    bearerToken?: string;
     context?: ApiContext;
     retryOnUnauthorized?: boolean;
     schema?: z.ZodType<T>;
@@ -574,7 +615,9 @@ export async function zentroRequest<T>(
   const authenticated = options.authenticated ?? false;
   const context = options.context;
   const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
 
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -588,7 +631,9 @@ export async function zentroRequest<T>(
     headers.set("X-Project-Id", context.projectId);
   }
 
-  if (authenticated) {
+  if (options.bearerToken) {
+    headers.set("Authorization", `Bearer ${options.bearerToken}`);
+  } else if (authenticated) {
     const session = await authBridge?.getSession();
     const token = session?.access_token;
 
@@ -860,6 +905,30 @@ export const zentroApi = {
       zentroRequest<AiControlCenter>("/providers", {}, { authenticated: true, context, schema: z.record(z.string(), z.unknown()) }),
     localModels: (context?: ApiContext) =>
       zentroRequest<LocalModelsResponse>("/models/local", {}, { authenticated: true, context, schema: localModelsResponseSchema }),
+  },
+  gateway: {
+    models: (context?: ApiContext, bearerToken?: string) =>
+      zentroRequest<GatewayModelsResponse>("/v1/models", {}, { authenticated: !bearerToken, bearerToken, context, schema: gatewayModelsResponseSchema }),
+    chatCompletions: (payload: ChatCompletionsPayload, context?: ApiContext, bearerToken?: string) =>
+      zentroRequest<Record<string, unknown>>(
+        "/v1/chat/completions",
+        { method: "POST", body: JSON.stringify(payload) },
+        { authenticated: !bearerToken, bearerToken, context, schema: chatCompletionsSchema }
+      ),
+    completions: (payload: TextCompletionsPayload, context?: ApiContext, bearerToken?: string) =>
+      zentroRequest<Record<string, unknown>>(
+        "/v1/completions",
+        { method: "POST", body: JSON.stringify(payload) },
+        { authenticated: !bearerToken, bearerToken, context, schema: textCompletionsSchema }
+      ),
+    openApi: async () => {
+      const primary = await zentroRequest<OpenApiDocument>("/openapi.json", {}, { schema: openApiDocumentSchema });
+      if (primary.status === "success") {
+        return primary;
+      }
+
+      return zentroRequest<OpenApiDocument>("/api-json", {}, { schema: openApiDocumentSchema });
+    },
   },
   operations: {
     summary: (query: OperationsQuery = {}, context?: ApiContext) =>
