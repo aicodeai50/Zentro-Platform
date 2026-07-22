@@ -80,9 +80,17 @@ export type ApiPortal = {
 };
 export type CreateApiKeyPayload = {
   name: string;
-  scopes?: string[];
-  projectId?: string;
+  organizationId?: string | null;
+  workspaceId?: string | null;
+  projectId?: string | null;
+  expiresAt?: string;
+  allowedModels?: string[];
+  allowedProviders?: string[];
+  monthlyCreditLimit?: number | null;
+  ipAllowlist?: string[];
+  permissions?: string[];
 };
+export type UpdateApiKeyPayload = Partial<CreateApiKeyPayload>;
 export type ApiKeyMetadata = z.infer<typeof apiKeyMetadataSchema>;
 export type ApiKeyActionResult = z.infer<typeof apiKeyActionSchema>;
 export type AnalyticsSummary = z.infer<typeof analyticsSchema>;
@@ -113,6 +121,28 @@ export type BillingUsage = z.infer<typeof billingUsageSchema>;
 export type BillingSummary = z.infer<typeof billingSummarySchema>;
 export type WorkspaceCredits = z.infer<typeof workspaceCreditsSchema>;
 export type WorkspaceTransactions = z.infer<typeof workspaceTransactionsSchema>;
+export type UsageSummary = z.infer<typeof usageSummarySchema>;
+export type UsageTimeseries = z.infer<typeof usageTimeseriesSchema>;
+export type UsageModelRow = z.infer<typeof usageModelRowSchema>;
+export type UsageProviderRow = z.infer<typeof usageProviderRowSchema>;
+export type UsageApiKeyRow = z.infer<typeof usageApiKeyRowSchema>;
+export type UsageRequestRow = z.infer<typeof usageRequestRowSchema>;
+export type UsageRequestsPage = z.infer<typeof usageRequestsPageSchema>;
+export type UsageModelsResponse = z.infer<typeof usageModelsResponseSchema>;
+export type UsageProvidersResponse = z.infer<typeof usageProvidersResponseSchema>;
+export type UsageApiKeysResponse = z.infer<typeof usageApiKeysResponseSchema>;
+export type UsageQuery = {
+  range?: string;
+  startDate?: string;
+  endDate?: string;
+  model?: string;
+  provider?: string;
+  apiKeyId?: string;
+  status?: string;
+  projectId?: string;
+  cursor?: string;
+  page?: string;
+};
 export type Webhook = z.infer<typeof webhookSchema>;
 export type WebhookActionResult = z.infer<typeof webhookActionSchema>;
 export type ProjectMember = z.infer<typeof projectMemberSchema>;
@@ -183,10 +213,21 @@ const apiKeyMetadataSchema = z
     id: z.string().optional(),
     name: z.string().optional(),
     prefix: z.string().optional(),
+    organizationId: z.string().optional(),
+    workspaceId: z.string().optional(),
+    projectId: z.string().optional(),
     scopes: z.array(z.string()).optional(),
+    permissions: z.array(z.string()).optional(),
+    allowedModels: z.array(z.string()).optional(),
+    allowedProviders: z.array(z.string()).optional(),
+    monthlyCreditLimit: z.union([z.number(), z.string()]).nullable().optional(),
+    ipAllowlist: z.array(z.string()).optional(),
     status: z.string().optional(),
     createdAt: z.string().optional(),
+    expiresAt: z.string().nullable().optional(),
     lastUsedAt: z.string().optional(),
+    createdBy: z.string().optional(),
+    revokedAt: z.string().nullable().optional(),
   })
   .passthrough();
 const apiKeyActionSchema = z
@@ -196,6 +237,7 @@ const apiKeyActionSchema = z
     token: z.string().optional(),
     secret: z.string().optional(),
     value: z.string().optional(),
+    plaintextKey: z.string().optional(),
   })
   .passthrough();
 const analyticsSchema = z.record(z.string(), z.unknown());
@@ -239,6 +281,113 @@ const workspaceTransactionsSchema = z
     data: z.array(z.record(z.string(), z.unknown())).optional(),
   })
   .passthrough();
+const usageSummarySchema = z.record(z.string(), z.unknown());
+const usageTimeseriesSchema = z.record(z.string(), z.unknown());
+const usageModelRowSchema = z
+  .object({
+    model: z.string().optional(),
+    name: z.string().optional(),
+    requestCount: z.union([z.number(), z.string()]).optional(),
+    requests: z.union([z.number(), z.string()]).optional(),
+    inputTokens: z.union([z.number(), z.string()]).optional(),
+    outputTokens: z.union([z.number(), z.string()]).optional(),
+    totalTokens: z.union([z.number(), z.string()]).optional(),
+    creditsSpent: z.union([z.number(), z.string()]).optional(),
+    averageLatency: z.union([z.number(), z.string()]).optional(),
+    errorRate: z.union([z.number(), z.string()]).optional(),
+  })
+  .passthrough();
+const usageProviderRowSchema = z
+  .object({
+    provider: z.string().optional(),
+    name: z.string().optional(),
+    requestCount: z.union([z.number(), z.string()]).optional(),
+    requests: z.union([z.number(), z.string()]).optional(),
+    fallbackCount: z.union([z.number(), z.string()]).optional(),
+    successRate: z.union([z.number(), z.string()]).optional(),
+    averageLatency: z.union([z.number(), z.string()]).optional(),
+    totalTokens: z.union([z.number(), z.string()]).optional(),
+    creditsSpent: z.union([z.number(), z.string()]).optional(),
+  })
+  .passthrough();
+const usageApiKeyRowSchema = z
+  .object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    prefix: z.string().optional(),
+    apiKeyPrefix: z.string().optional(),
+    projectId: z.string().optional(),
+    project: z.string().optional(),
+    requests: z.union([z.number(), z.string()]).optional(),
+    tokens: z.union([z.number(), z.string()]).optional(),
+    creditsSpent: z.union([z.number(), z.string()]).optional(),
+    lastUsedAt: z.string().optional(),
+    monthlyCreditLimit: z.union([z.number(), z.string()]).nullable().optional(),
+    limitConsumedPercent: z.union([z.number(), z.string()]).optional(),
+  })
+  .passthrough();
+const usageRequestRowSchema = z
+  .object({
+    id: z.string().optional(),
+    requestId: z.string().optional(),
+    timestamp: z.string().optional(),
+    createdAt: z.string().optional(),
+    status: z.string().optional(),
+    model: z.string().optional(),
+    provider: z.string().optional(),
+    apiKeyPrefix: z.string().optional(),
+    prefix: z.string().optional(),
+    latency: z.union([z.number(), z.string()]).optional(),
+    latencyMs: z.union([z.number(), z.string()]).optional(),
+    inputTokens: z.union([z.number(), z.string()]).optional(),
+    outputTokens: z.union([z.number(), z.string()]).optional(),
+    creditsSpent: z.union([z.number(), z.string()]).optional(),
+    error: z.unknown().optional(),
+    errorSummary: z.string().optional(),
+  })
+  .passthrough();
+const usageRequestsPageSchema = z
+  .object({
+    items: z.array(usageRequestRowSchema).optional(),
+    requests: z.array(usageRequestRowSchema).optional(),
+    data: z.array(usageRequestRowSchema).optional(),
+    nextCursor: z.string().nullable().optional(),
+    cursor: z.string().nullable().optional(),
+    page: z.union([z.number(), z.string()]).optional(),
+    total: z.union([z.number(), z.string()]).optional(),
+  })
+  .passthrough();
+const usageModelsResponseSchema = z.union([
+  z.array(usageModelRowSchema),
+  z
+    .object({
+      models: z.array(usageModelRowSchema).optional(),
+      items: z.array(usageModelRowSchema).optional(),
+      data: z.array(usageModelRowSchema).optional(),
+    })
+    .passthrough(),
+]);
+const usageProvidersResponseSchema = z.union([
+  z.array(usageProviderRowSchema),
+  z
+    .object({
+      providers: z.array(usageProviderRowSchema).optional(),
+      items: z.array(usageProviderRowSchema).optional(),
+      data: z.array(usageProviderRowSchema).optional(),
+    })
+    .passthrough(),
+]);
+const usageApiKeysResponseSchema = z.union([
+  z.array(usageApiKeyRowSchema),
+  z
+    .object({
+      apiKeys: z.array(usageApiKeyRowSchema).optional(),
+      keys: z.array(usageApiKeyRowSchema).optional(),
+      items: z.array(usageApiKeyRowSchema).optional(),
+      data: z.array(usageApiKeyRowSchema).optional(),
+    })
+    .passthrough(),
+]);
 const webhookSchema = z
   .object({
     id: z.string().optional(),
@@ -599,27 +748,33 @@ export const zentroApi = {
   },
   developerApi: {
     keys: (context?: ApiContext) =>
-      zentroRequest<ApiKeyMetadata[]>("/api-keys", {}, { authenticated: true, context, schema: z.array(apiKeyMetadataSchema) }),
+      zentroRequest<ApiKeyMetadata[]>("/v1/api-keys", {}, { authenticated: true, context, schema: z.array(apiKeyMetadataSchema) }),
+    create: (payload: CreateApiKeyPayload, context?: ApiContext) =>
+      zentroRequest<ApiKeyActionResult>(
+        "/v1/api-keys",
+        { method: "POST", body: JSON.stringify(payload) },
+        { authenticated: true, context: { ...context, workspaceId: payload.workspaceId ?? context?.workspaceId, projectId: payload.projectId ?? context?.projectId }, schema: apiKeyActionSchema }
+      ),
+    update: (keyId: string, payload: UpdateApiKeyPayload, context?: ApiContext) =>
+      zentroRequest<ApiKeyMetadata>(
+        `/v1/api-keys/${encodeURIComponent(keyId)}`,
+        { method: "PATCH", body: JSON.stringify(payload) },
+        { authenticated: true, context, schema: apiKeyMetadataSchema }
+      ),
+    revoke: (keyId: string, context?: ApiContext) =>
+      zentroRequest<unknown>(`/v1/api-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" }, { authenticated: true, context }),
     projectKeys: (projectId: string, context?: ApiContext) =>
-      zentroRequest<ApiKeyMetadata[]>(`/projects/${encodeURIComponent(projectId)}/api-keys`, {}, { authenticated: true, context: { ...context, projectId }, schema: z.array(apiKeyMetadataSchema) }),
+      zentroRequest<ApiKeyMetadata[]>(`/v1/api-keys?projectId=${encodeURIComponent(projectId)}`, {}, { authenticated: true, context: { ...context, projectId }, schema: z.array(apiKeyMetadataSchema) }),
     createProjectKey: (projectId: string, payload: Omit<CreateApiKeyPayload, "projectId">, context?: ApiContext) =>
       zentroRequest<ApiKeyActionResult>(
-        `/projects/${encodeURIComponent(projectId)}/api-keys`,
-        { method: "POST", body: JSON.stringify(payload) },
+        "/v1/api-keys",
+        { method: "POST", body: JSON.stringify({ ...payload, projectId }) },
         { authenticated: true, context: { ...context, projectId }, schema: apiKeyActionSchema }
       ),
     rotateProjectKey: (projectId: string, keyId: string, context?: ApiContext) =>
-      zentroRequest<ApiKeyActionResult>(
-        `/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(keyId)}/rotate`,
-        { method: "POST" },
-        { authenticated: true, context: { ...context, projectId }, schema: apiKeyActionSchema }
-      ),
+      zentroRequest<ApiKeyActionResult>(`/v1/api-keys/${encodeURIComponent(keyId)}`, { method: "PATCH", body: JSON.stringify({ rotate: true }) }, { authenticated: true, context: { ...context, projectId }, schema: apiKeyActionSchema }),
     revokeProjectKey: (projectId: string, keyId: string, context?: ApiContext) =>
-      zentroRequest<unknown>(
-        `/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(keyId)}/revoke`,
-        { method: "POST" },
-        { authenticated: true, context: { ...context, projectId } }
-      ),
+      zentroRequest<unknown>(`/v1/api-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" }, { authenticated: true, context: { ...context, projectId } }),
     projectKeyUsage: (projectId: string, keyId: string, context?: ApiContext) =>
       zentroRequest<unknown>(
         `/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(keyId)}/usage`,
@@ -630,6 +785,24 @@ export const zentroApi = {
   analytics: {
     summary: (context?: ApiContext) =>
       zentroRequest<AnalyticsSummary>("/analytics", {}, { authenticated: true, context, schema: analyticsSchema }),
+  },
+  usage: {
+    summary: (query: UsageQuery = {}, context?: ApiContext) =>
+      zentroRequest<UsageSummary>(`/v1/usage/summary${toQueryString(query)}`, {}, { authenticated: true, context, schema: usageSummarySchema }),
+    timeseries: (query: UsageQuery = {}, context?: ApiContext) =>
+      zentroRequest<UsageTimeseries>(`/v1/usage/timeseries${toQueryString(query)}`, {}, { authenticated: true, context, schema: usageTimeseriesSchema }),
+    models: (query: UsageQuery = {}, context?: ApiContext) =>
+      zentroRequest<UsageModelsResponse>(`/v1/usage/models${toQueryString(query)}`, {}, { authenticated: true, context, schema: usageModelsResponseSchema }),
+    providers: (query: UsageQuery = {}, context?: ApiContext) =>
+      zentroRequest<UsageProvidersResponse>(`/v1/usage/providers${toQueryString(query)}`, {}, { authenticated: true, context, schema: usageProvidersResponseSchema }),
+    apiKeys: (query: UsageQuery = {}, context?: ApiContext) =>
+      zentroRequest<UsageApiKeysResponse>(`/v1/usage/api-keys${toQueryString(query)}`, {}, { authenticated: true, context, schema: usageApiKeysResponseSchema }),
+    requests: (query: UsageQuery = {}, context?: ApiContext) =>
+      zentroRequest<UsageRequestsPage>(`/v1/usage/requests${toQueryString(query)}`, {}, { authenticated: true, context, schema: usageRequestsPageSchema }),
+  },
+  platformBilling: {
+    summary: (query: UsageQuery = {}, context?: ApiContext) =>
+      zentroRequest<BillingSummary>(`/v1/billing/summary${toQueryString(query)}`, {}, { authenticated: true, context, schema: billingSummarySchema }),
   },
   health: {
     application: (context?: ApiContext) => zentroRequest<HealthStatus>("/health", {}, { context, schema: healthSchema }),

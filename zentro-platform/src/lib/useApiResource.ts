@@ -7,6 +7,7 @@ type ResourceState<T> =
 
 export function useApiResource<T>(load: () => Promise<ApiResult<T>>, dependencies: unknown[] = []) {
   const [resource, setResource] = useState<ResourceState<T>>({ state: "loading" });
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let isCurrent = true;
@@ -21,7 +22,10 @@ export function useApiResource<T>(load: () => Promise<ApiResult<T>>, dependencie
     return () => {
       isCurrent = false;
     };
-  }, dependencies);
+  }, [...dependencies, reloadToken]);
 
-  return resource;
+  return {
+    ...resource,
+    reload: () => setReloadToken((value) => value + 1),
+  };
 }

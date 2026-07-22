@@ -136,29 +136,68 @@ describe("zentroApi client", () => {
     expect(detailHeaders.get("X-Project-Id")).toBe("project-1");
   });
 
-  it("uses exact canonical project API-key route paths", async () => {
-    const fetchMock = stubRuntimeFetch(jsonResponse([]), jsonResponse({}), jsonResponse({}), jsonResponse({}), jsonResponse({}));
+  it("uses exact Phase G1 API-key route paths", async () => {
+    const fetchMock = stubRuntimeFetch(
+      jsonResponse([]),
+      jsonResponse({ plaintextKey: "zt_once" }),
+      jsonResponse({ id: "k1", name: "renamed" }),
+      jsonResponse({}),
+      jsonResponse([]),
+      jsonResponse({ plaintextKey: "zt_project" }),
+      jsonResponse({ plaintextKey: "zt_rotated" }),
+      jsonResponse({})
+    );
     configureZentroApiAuth({
       getSession: async () => ({ access_token: "token" }) as never,
       refreshSession: async () => null,
     });
 
+    await zentroApi.developerApi.keys();
+    await zentroApi.developerApi.create({
+      name: "key",
+      organizationId: "org1",
+      workspaceId: "w1",
+      projectId: "p1",
+      expiresAt: "2030-01-01",
+      allowedModels: ["m1"],
+      allowedProviders: ["prov"],
+      monthlyCreditLimit: 100,
+      ipAllowlist: ["203.0.113.10"],
+    });
+    await zentroApi.developerApi.update("k1", { name: "renamed" });
+    await zentroApi.developerApi.revoke("k1");
     await zentroApi.developerApi.projectKeys("p1");
     await zentroApi.developerApi.createProjectKey("p1", { name: "key" });
     await zentroApi.developerApi.rotateProjectKey("p1", "k1");
     await zentroApi.developerApi.revokeProjectKey("p1", "k1");
-    await zentroApi.developerApi.projectKeyUsage("p1", "k1");
 
     expect(apiCalls(fetchMock).map((call) => String(call[0]))).toEqual([
-      "https://api.example.test/projects/p1/api-keys",
-      "https://api.example.test/projects/p1/api-keys",
-      "https://api.example.test/projects/p1/api-keys/k1/rotate",
-      "https://api.example.test/projects/p1/api-keys/k1/revoke",
-      "https://api.example.test/projects/p1/api-keys/k1/usage",
+      "https://api.example.test/v1/api-keys",
+      "https://api.example.test/v1/api-keys",
+      "https://api.example.test/v1/api-keys/k1",
+      "https://api.example.test/v1/api-keys/k1",
+      "https://api.example.test/v1/api-keys?projectId=p1",
+      "https://api.example.test/v1/api-keys",
+      "https://api.example.test/v1/api-keys/k1",
+      "https://api.example.test/v1/api-keys/k1",
     ]);
+
+    const createInit = apiCalls(fetchMock)[1][1];
+    expect(createInit.method).toBe("POST");
+    expect(JSON.parse(String(createInit.body))).toMatchObject({
+      name: "key",
+      organizationId: "org1",
+      workspaceId: "w1",
+      projectId: "p1",
+      monthlyCreditLimit: 100,
+    });
+
+    const rotateInit = apiCalls(fetchMock)[6][1];
+    expect(rotateInit.method).toBe("PATCH");
+    expect(JSON.parse(String(rotateInit.body))).toEqual({ rotate: true });
   });
 
-  it("uses canonical workspace API-key metadata path", async () => {
+  it("uses Phase G1 workspace API-key metadata path", async () => {
     const fetchMock = stubRuntimeFetch(jsonResponse([]));
     configureZentroApiAuth({
       getSession: async () => ({ access_token: "token" }) as never,
@@ -167,7 +206,7 @@ describe("zentroApi client", () => {
 
     await zentroApi.developerApi.keys();
 
-    expect(String(apiCalls(fetchMock)[0][0])).toBe("https://api.example.test/api-keys");
+    expect(String(apiCalls(fetchMock)[0][0])).toBe("https://api.example.test/v1/api-keys");
   });
 
   it("uses the runtime backend URL from public config", async () => {
@@ -306,5 +345,72 @@ describe("zentroApi client", () => {
 
     expect(result.status).toBe(status === 429 ? "rate-limited" : "backend-unavailable");
     expect("statusCode" in result ? result.statusCode : null).toBe(status);
+  });
+
+  it("uses exact Phase G2 usage and billing route paths with auth headers", async () => {
+    const fetchMock = stubRuntimeFetch(
+      jsonResponse({ requestsToday: 1 }),
+      jsonResponse({ requests: [{ day: "Mon", value: 2 }] }),
+      jsonResponse([{ model: "m1", requests: 3 }]),
+      jsonResponse({ providers: [{ provider: "p1", requests: 4 }] }),
+      jsonResponse({ apiKeys: [{ name: "k", prefix: "zt_ab" }] }),
+      jsonResponse({ items: [{ requestId: "r1", status: "ok" }], nextCursor: "c2" }),
+      jsonResponse({ creditBalance: 50, plan: "pro" })
+    );
+    configureZentroApiAuth({
+      getSession: async () => ({ access_token: "usage-token" }) as never,
+      refreshSession: async () => null,
+    });
+
+    const context = { workspaceId: "w1", projectId: "p1" };
+    await zentroApi.usage.summary({ range: "7d" }, context);
+    await zentroApi.usage.timeseries({ range: "30d" }, context);
+    await zentroApi.usage.models({ range: "24h" }, context);
+    await zentroApi.usage.providers({ range: "billing_period" }, context);
+    await zentroApi.usage.apiKeys({ range: "7d" }, context);
+    await zentroApi.usage.requests({ range: "7d", status: "error", cursor: "c1" }, context);
+    await zentroApi.platformBilling.summary({}, context);
+
+    expect(apiCalls(fetchMock).map((call) => String(call[0]))).toEqual([
+      "https://api.example.test/v1/usage/summary?range=7d",
+      "https://api.example.test/v1/usage/timeseries?range=30d",
+      "https://api.example.test/v1/usage/models?range=24h",
+      "https://api.example.test/v1/usage/providers?range=billing_period",
+      "https://api.example.test/v1/usage/api-keys?range=7d",
+      "https://api.example.test/v1/usage/requests?range=7d&status=error&cursor=c1",
+      "https://api.example.test/v1/billing/summary",
+    ]);
+
+    const headers = apiCalls(fetchMock)[0][1].headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer usage-token");
+    expect(headers.get("X-Workspace-Id")).toBe("w1");
+    expect(headers.get("X-Project-Id")).toBe("p1");
+  });
+
+  it("parses Phase G2 usage list schemas for arrays and wrapped objects", async () => {
+    stubRuntimeFetch(jsonResponse([{ model: "m1", requests: "9" }]), jsonResponse({ providers: [{ provider: "openai", successRate: 0.99 }] }));
+    configureZentroApiAuth({
+      getSession: async () => ({ access_token: "token" }) as never,
+      refreshSession: async () => null,
+    });
+
+    const models = await zentroApi.usage.models();
+    const providers = await zentroApi.usage.providers();
+
+    expect(models.status).toBe("success");
+    expect(providers.status).toBe("success");
+    expect(models.status === "success" ? models.data : null).toEqual([{ model: "m1", requests: "9" }]);
+    expect(providers.status === "success" ? providers.data : null).toMatchObject({ providers: [{ provider: "openai", successRate: 0.99 }] });
+  });
+
+  it("marks missing Phase G2 usage endpoints as capability-required", async () => {
+    stubRuntimeFetch(jsonResponse({ message: "not found" }, 404));
+    configureZentroApiAuth({
+      getSession: async () => ({ access_token: "token" }) as never,
+      refreshSession: async () => null,
+    });
+
+    const result = await zentroApi.usage.summary({ range: "7d" });
+    expect(result.status).toBe("capability-required");
   });
 });

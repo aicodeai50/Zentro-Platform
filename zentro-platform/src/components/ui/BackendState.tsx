@@ -2,16 +2,35 @@ import type { ReactNode } from "react";
 import { Card } from "./Card";
 import type { ApiResult } from "../../lib/zentroApi";
 
+type ResourceLike<T> = { state: "loading" } | { state: "loaded"; result: ApiResult<T> };
+
 type BackendStateProps<T> = {
-  resource: { state: "loading" } | { state: "loaded"; result: ApiResult<T> };
+  resource: ResourceLike<T>;
   children: (data: T) => ReactNode;
+  onRetry?: () => void;
+  emptyWhen?: (data: T) => boolean;
+  emptyMessage?: string;
+  title?: string;
 };
 
-export function BackendState<T>({ resource, children }: BackendStateProps<T>) {
+export function BackendState<T>({
+  resource,
+  children,
+  onRetry,
+  emptyWhen,
+  emptyMessage = "No records returned by backend.",
+  title,
+}: BackendStateProps<T>) {
   if (resource.state === "loading") {
     return (
-      <Card>
-        <p className="muted-text">Loading live backend data...</p>
+      <Card className="skeleton-card" aria-busy="true" aria-live="polite">
+        <span className="eyebrow">Loading</span>
+        <h2>{title ? `Loading ${title}` : "Loading live backend data"}</h2>
+        <div className="skeleton-grid" aria-hidden="true">
+          <div className="skeleton-line" />
+          <div className="skeleton-line" />
+          <div className="skeleton-line short" />
+        </div>
       </Card>
     );
   }
@@ -19,13 +38,43 @@ export function BackendState<T>({ resource, children }: BackendStateProps<T>) {
   const { result } = resource;
 
   if (result.status !== "success") {
+    const eyebrow =
+      result.status === "unauthorized" || result.status === "forbidden"
+        ? "Access denied"
+        : result.status === "capability-required"
+          ? "Backend capability required"
+          : "Backend unavailable";
+
     return (
       <Card className="capability-card">
-        <span className="eyebrow">{result.status === "capability-required" ? "Backend capability required" : "Backend unavailable"}</span>
-        <h2>{result.endpoint}</h2>
+        <span className="eyebrow">{eyebrow}</span>
+        <h2>{title ?? result.endpoint}</h2>
         <p>{result.message}</p>
         {result.status === "capability-required" ? (
           <small>Returned HTTP {result.statusCode}. No data is fabricated for this feature.</small>
+        ) : null}
+        {result.status === "unauthorized" || result.status === "forbidden" ? (
+          <small>Backend role permissions remain authoritative.</small>
+        ) : null}
+        {onRetry ? (
+          <button className="ghost-button" type="button" onClick={onRetry}>
+            Retry
+          </button>
+        ) : null}
+      </Card>
+    );
+  }
+
+  if (emptyWhen?.(result.data)) {
+    return (
+      <Card>
+        <span className="eyebrow">Empty</span>
+        <h2>{title ?? "No data"}</h2>
+        <p className="empty-state">{emptyMessage}</p>
+        {onRetry ? (
+          <button className="ghost-button" type="button" onClick={onRetry}>
+            Retry
+          </button>
         ) : null}
       </Card>
     );
